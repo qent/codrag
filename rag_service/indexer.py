@@ -100,10 +100,11 @@ class PathIndexer:
         VectorStoreIndex(nodes, storage_context=StorageContext.from_defaults(vector_store=self.code_vs))
         return len(nodes)
 
-    def _generate_file_card(self, file_path: Path) -> str:
+    def _generate_file_card(self, file_path: Path, file_text: str) -> str:
         """Generate a textual description for the file."""
 
-        prompt = Path(self.cfg.prompts.file_card_md).read_text() + f"\nFile: {file_path.name}\n"
+        prompt = Path(self.cfg.prompts.file_card_md).read_text()
+        prompt += f"\nFilename: {file_path.name}\n```{file_text}```\n"
         try:
             return self.llama.llm().complete(prompt).text
         except Exception:
@@ -131,7 +132,7 @@ class PathIndexer:
         text, file_hash = self._read_file(file_path)
         nodes = self._create_nodes(text, file_path, file_hash)
         stats.code_nodes_upserted += self._upsert_code_nodes(nodes)
-        card_text = self._generate_file_card(file_path)
+        card_text = self._generate_file_card(file_path, text)
         self._upsert_file_card(file_path, file_hash, card_text)
         stats.file_cards_upserted += 1
 
