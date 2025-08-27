@@ -27,6 +27,7 @@ class IndexRequest(BaseModel):
 class QueryRequest(BaseModel):
     q: str
     top_k: int = 10
+    interfaces: bool = False
 
 
 @app.on_event("startup")
@@ -60,15 +61,37 @@ def query_endpoint(req: QueryRequest):
     assert CONFIG and QDRANT and LLAMA
     qe = build_query_engine(CONFIG, QDRANT, LLAMA)
     result = qe.retrieve(req.q)
-    items = [
-        {
-            "type": r.node.metadata.get("type", "code_node"),
-            "score": r.score,
-            "text": r.node.get_content(),
-            "metadata": r.node.metadata,
-        }
-        for r in result
-    ]
+
+    if req.interfaces:
+        from .interface_extractor import extract_public_interfaces
+
+        items = []
+        seen: set[str] = set()
+        for r in result:
+            file_path = r.node.metadata.get("file_path")
+            lang = r.node.metadata.get("lang")
+            if not file_path or file_path in seen:
+                continue
+            seen.add(file_path)
+            interfaces = extract_public_interfaces(Path(file_path), lang)
+            items.append(
+                {
+                    "type": "file_interface",
+                    "score": r.score,
+                    "interfaces": interfaces,
+                    "metadata": {"file_path": file_path, "lang": lang},
+                }
+            )
+    else:
+        items = [
+            {
+                "type": r.node.metadata.get("type", "code_node"),
+                "score": r.score,
+                "text": r.node.get_content(),
+                "metadata": r.node.metadata,
+            }
+            for r in result
+        ]
     return {"status": "ok", "items": items}
 
 
