@@ -23,7 +23,7 @@
   "openai": {
     "embeddings": {
       "base_url": "https://api.openai.com/v1",
-      "model": "text-embedding-3-large",
+      "model": "text-embedding-3-small",
       "api_key": "env:OPENAI_API_KEY_EMB",
       "verify_ssl": true,
       "timeout_sec": 60,
@@ -32,7 +32,7 @@
     },
     "generator": {
       "base_url": "https://api.openai.com/v1",
-      "model": "gpt-4o-mini",
+      "model": "gpt-5-nano",
       "api_key": "env:OPENAI_API_KEY_GEN",
       "verify_ssl": true,
       "timeout_sec": 120,
@@ -47,7 +47,7 @@
   },
   "qdrant": {
     "url": "http://localhost:6333",
-    "collection_prefix": "espresso_",
+    "collection_prefix": "codrag_",
     "distance": "Cosine",
     "prefer_grpc": false
   },
