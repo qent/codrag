@@ -1,0 +1,22 @@
+version: "3.8"
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333", "6334:6334"]
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+
+  rag:
+    build: .
+    environment:
+      - CONFIG_PATH=/app/config.json
+      - OPENAI_API_KEY_EMB=${OPENAI_API_KEY_EMB}
+      - OPENAI_API_KEY_GEN=${OPENAI_API_KEY_GEN}
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./prompts:/app/prompts:ro
+      - /host/repo:/repo:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - qdrant

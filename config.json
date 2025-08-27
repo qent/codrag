@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "indexing": {
+    "include_extensions": [".kt", ".java"],
+    "blacklist": [
+      "*/build/*",
+      "*/.git/*",
+      "*/.gradle/*",
+      "*.min.js"
+    ],
+    "follow_symlinks": false,
+    "max_file_size_mb": 2
+  },
+  "ast": {
+    "chunk_lines": 60,
+    "chunk_overlap": 10,
+    "max_chars": 2000,
+    "languages": {
+      ".kt": "kotlin",
+      ".java": "java"
+    }
+  },
+  "openai": {
+    "embeddings": {
+      "base_url": "https://api.openai.com/v1",
+      "model": "text-embedding-3-large",
+      "api_key": "env:OPENAI_API_KEY_EMB",
+      "verify_ssl": true,
+      "timeout_sec": 60,
+      "retries": 3,
+      "rate_limit_rps": 5
+    },
+    "generator": {
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4o-mini",
+      "api_key": "env:OPENAI_API_KEY_GEN",
+      "verify_ssl": true,
+      "timeout_sec": 120,
+      "retries": 3,
+      "rate_limit_rps": 1
+    }
+  },
+  "prompts": {
+    "file_card_md": "./prompts/file_card.md",
+    "dir_card_md": "./prompts/dir_card.md",
+    "generate_dir_cards": false
+  },
+  "qdrant": {
+    "url": "http://localhost:6333",
+    "collection_prefix": "espresso_",
+    "distance": "Cosine",
+    "prefer_grpc": false
+  },
+  "llamaindex": {
+    "use": true,
+    "retrieval": {
+      "code_nodes_top_k": 6,
+      "file_cards_top_k": 4,
+      "dir_cards_top_k": 2,
+      "fusion_mode": "relative_score"
+    }
+  },
+  "http": {
+    "port": 8080,
+    "max_context_items": 12,
+    "max_total_chars": 20000
+  },
+  "features": {
+    "cache_llm_cards": true,
+    "skip_on_llm_error": true,
+    "concurrency": 6
+  },
+  "logging": {
+    "level": "INFO",
+    "json": true
+  }
+}
