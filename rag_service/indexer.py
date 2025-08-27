@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from llama_index.core import Document, StorageContext, VectorStoreIndex
-from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.node_parser import CodeSplitter
 from qdrant_client import QdrantClient
 
 from .config import AppConfig
@@ -83,9 +83,11 @@ class PathIndexer:
                 "lang": lang,
             },
         )
-        splitter = SentenceSplitter(
-            chunk_size=self.cfg.ast.max_chars,
-            chunk_overlap=self.cfg.ast.chunk_overlap,
+        splitter = CodeSplitter(
+            language=lang,
+            chunk_lines=self.cfg.ast.chunk_lines,
+            chunk_lines_overlap=self.cfg.ast.chunk_overlap,
+            max_chars=self.cfg.ast.max_chars,
         )
         nodes = splitter.get_nodes_from_documents([doc])
         for n in nodes:

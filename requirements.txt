@@ -10,3 +10,5 @@ httpx==0.27.0
 pydantic==2.11.5
 orjson==3.10.4
 pytest==8.2.2
+tree_sitter==0.25.1
+tree_sitter_language_pack==0.9.0
