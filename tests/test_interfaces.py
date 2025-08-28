@@ -295,13 +295,15 @@ def test_query_endpoint_interfaces(tmp_path: Path, monkeypatch: MonkeyPatch) -> 
         def retrieve(self, q: str) -> list[Result]:
             return [Result({"file_path": str(fp), "lang": "python"})]
 
-    def fake_build_query_engine(cfg, qdrant, llama):
+    def fake_build_query_engine(cfg, qdrant, llama, collection_prefix):
         return Retriever()
 
     monkeypatch.setattr(main, "build_query_engine", fake_build_query_engine)
-    main.CONFIG = object()
+    main.CONFIG = type("Cfg", (), {"features": type("F", (), {})(), "qdrant": object()})()
     main.QDRANT = object()
     main.LLAMA = object()
 
-    resp = main.query_endpoint(main.QueryRequest(q="test", interfaces=True))
+    resp = main.query_endpoint(
+        main.QueryRequest(root_path=str(tmp_path), q="test", interfaces=True)
+    )
     assert resp["items"][0]["interfaces"] == ["def foo(): [1:2]"]

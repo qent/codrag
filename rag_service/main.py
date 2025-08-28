@@ -15,12 +15,13 @@ from .indexer import index_path
 from .llama_facade import LlamaIndexFacade
 from .retriever import build_query_engine
 from .openai_utils import close_llamaindex_clients
+from .collection_utils import collection_prefix_from_path
 
 app = FastAPI()
 CONFIG: AppConfig | None = None
 QDRANT: QdrantClient | None = None
 LLAMA: LlamaIndexFacade | None = None
-QE: Any | None = None
+QE: dict[str, Any] = {}
 QE_CONFIG_ID: int | None = None
 
 
@@ -30,6 +31,7 @@ class IndexRequest(BaseModel):
 
 
 class QueryRequest(BaseModel):
+    root_path: str
     q: str
     top_k: int = 10
     interfaces: bool = False
@@ -48,23 +50,24 @@ def _with_file_path_prefix(metadata: dict) -> dict:
     return dict(metadata)
 
 
-def _build_query_engine() -> None:
-    """(Re)build the global query engine using current config."""
+def _build_query_engine(prefix: str) -> None:
+    """(Re)build the query engine for ``prefix`` using current config."""
 
     global QE, QE_CONFIG_ID
     assert CONFIG and QDRANT and LLAMA
-    QE = build_query_engine(CONFIG, QDRANT, LLAMA)
+    QE[prefix] = build_query_engine(CONFIG, QDRANT, LLAMA, prefix)
     QE_CONFIG_ID = id(CONFIG)
 
 
 def _load_config(config_path: Path) -> None:
     """Load configuration and initialize shared clients."""
 
-    global CONFIG, QDRANT, LLAMA
+    global CONFIG, QDRANT, LLAMA, QE, QE_CONFIG_ID
     CONFIG = AppConfig.load(config_path)
     QDRANT = QdrantClient(url=CONFIG.qdrant.url)
     LLAMA = LlamaIndexFacade(CONFIG, QDRANT)
-    _build_query_engine()
+    QE.clear()
+    QE_CONFIG_ID = id(CONFIG)
 
 
 @app.on_event("startup")
@@ -104,11 +107,11 @@ def query_endpoint(req: QueryRequest):
     """Query indexed data and return matching items."""
 
     assert CONFIG and QDRANT and LLAMA
+    prefix = collection_prefix_from_path(req.root_path)
     global QE
-    if QE is None or QE_CONFIG_ID != id(CONFIG):
-        _build_query_engine()
-    assert QE
-    result = QE.retrieve(req.q)
+    if QE_CONFIG_ID != id(CONFIG) or prefix not in QE:
+        _build_query_engine(prefix)
+    result = QE[prefix].retrieve(req.q)
 
     if req.interfaces:
         from .interface_extractor import extract_public_interfaces
@@ -152,7 +155,7 @@ def query_endpoint(req: QueryRequest):
                     if not file_path or file_path in seen_files:
                         continue
                     seen_files.add(file_path)
-                    items.extend(_fetch_code_nodes(file_path, r.score))
+                    items.extend(_fetch_code_nodes(file_path, r.score, prefix))
                 else:
                     items.append(
                         {
@@ -165,16 +168,14 @@ def query_endpoint(req: QueryRequest):
     return {"status": "ok", "items": items}
 
 
-def _fetch_code_nodes(file_path: str, score: float) -> list[dict]:
+def _fetch_code_nodes(file_path: str, score: float, prefix: str) -> list[dict]:
     """Return code node items for ``file_path``."""
 
     assert CONFIG and QDRANT
     flt = Filter(
         must=[FieldCondition(key="file_path", match=MatchValue(value=file_path))]
     )
-    points, _ = QDRANT.scroll(
-        f"{CONFIG.qdrant.collection_prefix}code_nodes", limit=100, scroll_filter=flt
-    )
+    points, _ = QDRANT.scroll(f"{prefix}code_nodes", limit=100, scroll_filter=flt)
     items: list[dict] = []
     for p in points:
         payload = p.payload or {}
@@ -198,15 +199,20 @@ def get_config():
 
 
 @app.get("/v1/collections")
-def collections():
-    """Return summary information about Qdrant collections."""
+def collections(root_path: str):
+    """Return summary information about Qdrant collections for ``root_path``."""
 
     assert QDRANT and CONFIG
-    names = [
-        f"{CONFIG.qdrant.collection_prefix}code_nodes",
-        f"{CONFIG.qdrant.collection_prefix}file_cards",
-    ]
-    info = {name: QDRANT.get_collection(name).dict() if QDRANT.collection_exists(name) else None for name in names}
+    prefix = collection_prefix_from_path(root_path)
+    names = [f"{prefix}code_nodes", f"{prefix}file_cards"]
+    if CONFIG.features.process_directories:
+        names.append(f"{prefix}dir_cards")
+    info = {
+        name: QDRANT.get_collection(name).dict()
+        if QDRANT.collection_exists(name)
+        else None
+        for name in names
+    }
     return info
 
 

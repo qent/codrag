@@ -56,7 +56,6 @@
   },
   "qdrant": {
     "url": "http://localhost:6333",
-    "collection_prefix": "codrag_",
     "distance": "Cosine",
     "prefer_grpc": false
   },

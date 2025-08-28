@@ -45,7 +45,6 @@ class PromptsConfig(BaseModel):
 
 class QdrantConfig(BaseModel):
     url: str = "http://localhost:6333"
-    collection_prefix: str = ""
     distance: str = "Cosine"
     prefer_grpc: bool = False
 

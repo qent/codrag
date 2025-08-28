@@ -23,17 +23,23 @@ class LlamaIndexFacade:
     def embed_model(self):
         return Settings.embed_model
 
-    def code_vs(self) -> QdrantVectorStore:
+    def code_vs(self, collection_prefix: str) -> QdrantVectorStore:
+        """Return vector store for code nodes using ``collection_prefix``."""
+
         return QdrantVectorStore(
-            client=self.qdrant, collection_name=f"{self.cfg.qdrant.collection_prefix}code_nodes"
+            client=self.qdrant, collection_name=f"{collection_prefix}code_nodes"
         )
 
-    def file_vs(self) -> QdrantVectorStore:
+    def file_vs(self, collection_prefix: str) -> QdrantVectorStore:
+        """Return vector store for file cards using ``collection_prefix``."""
+
         return QdrantVectorStore(
-            client=self.qdrant, collection_name=f"{self.cfg.qdrant.collection_prefix}file_cards"
+            client=self.qdrant, collection_name=f"{collection_prefix}file_cards"
         )
 
-    def dir_vs(self) -> QdrantVectorStore:
+    def dir_vs(self, collection_prefix: str) -> QdrantVectorStore:
+        """Return vector store for directory cards using ``collection_prefix``."""
+
         return QdrantVectorStore(
-            client=self.qdrant, collection_name=f"{self.cfg.qdrant.collection_prefix}dir_cards"
+            client=self.qdrant, collection_name=f"{collection_prefix}dir_cards"
         )
