@@ -8,7 +8,7 @@ from qdrant_client import QdrantClient
 
 from .config import AppConfig
 from .llama_facade import LlamaIndexFacade
-from .query_rewriter import rewrite_for_collections
+from .query_rewriter import expand_queries, rewrite_for_collections
 
 
 def _relative_rescore(nodes: Sequence[NodeWithScore], weight: float) -> List[NodeWithScore]:
@@ -80,15 +80,24 @@ def build_query_engine(cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFa
     file_weight = getattr(cfg.llamaindex.retrieval, "file_weight", 1.0)
     dir_weight = getattr(cfg.llamaindex.retrieval, "dir_weight", 1.0)
     rrf_k = getattr(cfg.llamaindex.retrieval, "rrf_k", 60)
+    max_expansions = getattr(cfg.llamaindex.retrieval, "max_expansions", 0)
 
     class SimpleRetriever:
         def retrieve(self, query: str):
-            code_q, file_q, dir_q = rewrite_for_collections(
-                query, cfg.openai.query_rewriter
+            queries = [query]
+            queries += expand_queries(
+                query, cfg.openai.query_rewriter, max_expansions
             )
-            code_nodes = code_ret.retrieve(code_q)
-            file_nodes = file_ret.retrieve(file_q)
-            dir_nodes = dir_ret.retrieve(dir_q)
+            code_nodes: List[NodeWithScore] = []
+            file_nodes: List[NodeWithScore] = []
+            dir_nodes: List[NodeWithScore] = []
+            for q in queries:
+                code_q, file_q, dir_q = rewrite_for_collections(
+                    q, cfg.openai.query_rewriter
+                )
+                code_nodes.extend(code_ret.retrieve(code_q))
+                file_nodes.extend(file_ret.retrieve(file_q))
+                dir_nodes.extend(dir_ret.retrieve(dir_q))
             return fuse_results(
                 code_nodes,
                 file_nodes,
