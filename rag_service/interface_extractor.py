@@ -40,9 +40,10 @@ def _is_public(name: str, signature: str) -> bool:
 def extract_public_interfaces(file_path: Path, lang: str | None) -> List[str]:
     """Return a list of public interfaces found in ``file_path``.
 
-    The function uses ``tree-sitter`` to parse the file using the provided
-    language identifier. If the language is unsupported or parsing fails,
-    an empty list is returned.
+    Each interface signature is suffixed with ``[first_line:last_line]`` to
+    indicate its location in the file. The function uses ``tree-sitter`` to
+    parse the file using the provided language identifier. If the language is
+    unsupported or parsing fails, an empty list is returned.
     """
 
     try:
@@ -61,7 +62,9 @@ def extract_public_interfaces(file_path: Path, lang: str | None) -> List[str]:
                 name = source[name_node.start_byte : name_node.end_byte].decode("utf-8", errors="ignore")
                 sig = _signature_from_node(node, source)
                 if _is_public(name, sig):
-                    signatures.append(sig)
+                    start_line = node.start_point[0] + 1
+                    end_line = node.end_point[0] + 1
+                    signatures.append(f"{sig} [{start_line}:{end_line}]")
         for child in node.children:
             visit(child)
 
