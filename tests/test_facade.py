@@ -33,3 +33,4 @@ def test_facade_vector_store_names(tmp_path):
     facade = LlamaIndexFacade(cfg, qdrant, initialize=False)
     assert facade.code_vs().collection_name.endswith("code_nodes")
     assert facade.file_vs().collection_name.endswith("file_cards")
+    assert facade.dir_vs().collection_name.endswith("dir_cards")

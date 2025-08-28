@@ -5,7 +5,7 @@ import hashlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import CodeSplitter
@@ -37,19 +37,25 @@ class PathIndexer:
         self.llama = llama
         self.code_vs = llama.code_vs()
         self.file_vs = llama.file_vs()
+        self.dir_vs = llama.dir_vs()
 
     def index_path(self, root: Path) -> IndexStats:
         """Index all files under ``root`` and return statistics."""
 
         stats = IndexStats()
-        files = self._scan_files(root)
+        dir_items: Dict[Path, List[str]] = {}
+        files = sorted(self._scan_files(root))
         stats.files_total = len(files)
         for file_path in files:
             text, file_hash = self._read_file(file_path)
             if self._is_cached(file_path, file_hash):
                 stats.files_skipped_cache += 1
                 continue
-            self._process_file(file_path, stats, text, file_hash)
+            card_text = self._process_file(file_path, stats, text, file_hash)
+            if self.cfg.prompts.generate_dir_cards:
+                dir_items.setdefault(file_path.parent, []).append(card_text)
+        if self.cfg.prompts.generate_dir_cards:
+            self._generate_dir_cards(root, dir_items, stats)
         return stats
 
     def _scan_files(self, root: Path) -> List[Path]:
@@ -147,8 +153,10 @@ class PathIndexer:
         )
         VectorStoreIndex([doc], storage_context=StorageContext.from_defaults(vector_store=self.file_vs))
 
-    def _process_file(self, file_path: Path, stats: IndexStats, text: str, file_hash: str) -> None:
-        """Index a single file and update ``stats``."""
+    def _process_file(
+        self, file_path: Path, stats: IndexStats, text: str, file_hash: str
+    ) -> str:
+        """Index a single file, update ``stats`` and return card text."""
 
         stats.files_processed += 1
         nodes = self._create_nodes(text, file_path, file_hash)
@@ -156,6 +164,51 @@ class PathIndexer:
         card_text = self._generate_file_card(file_path, text)
         self._upsert_file_card(file_path, file_hash, card_text)
         stats.file_cards_upserted += 1
+        return card_text
+
+    def _generate_dir_card(self, dir_path: Path, items: List[str]) -> str:
+        """Generate a textual description for a directory."""
+
+        prompt = Path(self.cfg.prompts.dir_card_md).read_text()
+        prompt += f"\nDirectory: {dir_path.name}\n"
+        prompt += "\n".join(items) + "\n"
+        try:
+            return self.llama.llm().complete(prompt).text
+        except Exception:
+            return f"Description for {dir_path.name}"
+
+    def _upsert_dir_card(self, dir_path: Path, card_text: str) -> None:
+        """Write a directory card to the vector store."""
+
+        doc = Document(
+            text=card_text,
+            metadata={
+                "type": "dir_card",
+                "dir_path": str(dir_path),
+                "parent_dir": str(dir_path.parent),
+            },
+        )
+        VectorStoreIndex([doc], storage_context=StorageContext.from_defaults(vector_store=self.dir_vs))
+
+    def _generate_dir_cards(
+        self, root: Path, dir_items: Dict[Path, List[str]], stats: IndexStats
+    ) -> None:
+        """Generate and upsert directory cards bottom-up."""
+
+        processed: set[Path] = set()
+        while True:
+            pending = [p for p in dir_items.keys() if p not in processed]
+            if not pending:
+                break
+            for dir_path in sorted(pending, key=lambda p: len(p.parts), reverse=True):
+                card_text = self._generate_dir_card(dir_path, dir_items.get(dir_path, []))
+                self._upsert_dir_card(dir_path, card_text)
+                stats.dir_cards_upserted += 1
+                processed.add(dir_path)
+                if dir_path == root:
+                    continue
+                parent = dir_path.parent
+                dir_items.setdefault(parent, []).append(card_text)
 
 
 def index_path(

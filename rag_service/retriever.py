@@ -36,27 +36,33 @@ def _rrf_rescore(
 def fuse_results(
     code_nodes: Sequence[NodeWithScore],
     file_nodes: Sequence[NodeWithScore],
-    mode: str,
-    code_weight: float,
-    file_weight: float,
-    rrf_k: int,
+    dir_nodes: Sequence[NodeWithScore] | None = None,
+    mode: str = "relative_score",
+    code_weight: float = 1.0,
+    file_weight: float = 1.0,
+    dir_weight: float = 1.0,
+    rrf_k: int = 60,
 ) -> List[NodeWithScore]:
-    """Fuse code and file retrieval results according to ``mode``."""
+    """Fuse code, file and directory retrieval results according to ``mode``."""
 
+    dir_nodes = dir_nodes or []
     if mode == "rrf":
         rescored = _rrf_rescore(code_nodes, code_weight, rrf_k)
         rescored += _rrf_rescore(file_nodes, file_weight, rrf_k)
+        rescored += _rrf_rescore(dir_nodes, dir_weight, rrf_k)
     else:
         rescored = _relative_rescore(code_nodes, code_weight)
         rescored += _relative_rescore(file_nodes, file_weight)
+        rescored += _relative_rescore(dir_nodes, dir_weight)
     return sorted(rescored, key=lambda n: n.score, reverse=True)
 
 def build_query_engine(cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFacade | None = None):
-    """Build a simple retriever combining code and file card indexes."""
+    """Build a simple retriever combining code, file and directory indexes."""
 
     llama = llama or LlamaIndexFacade(cfg, qdrant)
     code_vs = llama.code_vs()
     file_vs = llama.file_vs()
+    dir_vs = llama.dir_vs()
 
     code_ret = VectorStoreIndex.from_vector_store(code_vs).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.code_nodes_top_k
@@ -64,18 +70,30 @@ def build_query_engine(cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFa
     file_ret = VectorStoreIndex.from_vector_store(file_vs).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.file_cards_top_k
     )
+    dir_ret = VectorStoreIndex.from_vector_store(dir_vs).as_retriever(
+        similarity_top_k=cfg.llamaindex.retrieval.dir_cards_top_k
+    )
 
     fusion_mode = cfg.llamaindex.retrieval.fusion_mode
     code_weight = getattr(cfg.llamaindex.retrieval, "code_weight", 1.0)
     file_weight = getattr(cfg.llamaindex.retrieval, "file_weight", 1.0)
+    dir_weight = getattr(cfg.llamaindex.retrieval, "dir_weight", 1.0)
     rrf_k = getattr(cfg.llamaindex.retrieval, "rrf_k", 60)
 
     class SimpleRetriever:
         def retrieve(self, query: str):
             code_nodes = code_ret.retrieve(query)
             file_nodes = file_ret.retrieve(query)
+            dir_nodes = dir_ret.retrieve(query)
             return fuse_results(
-                code_nodes, file_nodes, fusion_mode, code_weight, file_weight, rrf_k
+                code_nodes,
+                file_nodes,
+                dir_nodes,
+                fusion_mode,
+                code_weight,
+                file_weight,
+                dir_weight,
+                rrf_k,
             )
 
     return SimpleRetriever()

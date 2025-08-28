@@ -42,22 +42,25 @@ Settings.llm = MockLLM()
 
 
 def test_index_and_query(tmp_path):
-    """Index a file and ensure it can be retrieved."""
+    """Index files and ensure directory cards can be retrieved."""
 
     src = tmp_path / "src"
-    src.mkdir()
+    pkg = src / "pkg"
+    pkg.mkdir(parents=True)
     code = "class Foo { fun bar() {} }"
-    (src / "Test.kt").write_text(code)
+    (pkg / "Test.kt").write_text(code)
 
     cfg = AppConfig.load(Path("config.json"))
+    cfg.prompts.generate_dir_cards = True
     qdrant = QdrantClient(location=":memory:")
     llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
     stats = index_path(src, cfg, qdrant, llama)
     assert stats.code_nodes_upserted > 0
+    assert stats.dir_cards_upserted > 0
 
     qe = build_query_engine(cfg, qdrant, llama)
     res = qe.retrieve("Foo")
-    assert res
+    assert any(n.node.metadata.get("type") == "dir_card" for n in res)
 
 
 class CaptureLLM(MockLLM):
