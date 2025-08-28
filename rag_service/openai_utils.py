@@ -4,10 +4,10 @@ import logging
 import os
 from httpx import Client
 from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.openai import OpenAI
+from llama_index.llms.openai_like import OpenAILike
 from llama_index.core import Settings
 
-from .config import AppConfig
+from .config import AppConfig, OpenAIClientConfig
 
 logger = logging.getLogger(__name__)
 
@@ -16,23 +16,27 @@ GENERATOR_CLIENT: Client | None = None
 
 
 def init_llamaindex_clients(cfg: AppConfig) -> None:
-    """Initialize LlamaIndex global settings with OpenAI clients.
+    """Initialize LlamaIndex global settings with OpenAI‑like clients.
 
     The created HTTP clients are stored globally for graceful shutdown.
     """
 
     global EMBEDDINGS_CLIENT, GENERATOR_CLIENT
 
-    def get_key(c):
+    def get_key(c: OpenAIClientConfig) -> str:
+        """Resolve API key, supporting ``env:VAR`` indirection."""
+
         api_key = c.api_key
         if api_key.startswith("env:"):
             api_key = os.environ.get(api_key.split(":", 1)[1], "")
         return api_key
 
-    def get_http_client(c):
+    def get_http_client(c: OpenAIClientConfig) -> Client:
+        """Create an HTTP client for the provided OpenAI‑like settings."""
+
         http_client = Client(verify=c.verify_ssl, timeout=c.timeout_sec)
         if not c.verify_ssl:
-            logger.warning("SSL verification disabled for OpenAI client %s", c.model)
+            logger.warning("SSL verification disabled for OpenAI-like client %s", c.model)
         return http_client
 
     EMBEDDINGS_CLIENT = get_http_client(cfg.openai.embeddings)
@@ -44,7 +48,7 @@ def init_llamaindex_clients(cfg: AppConfig) -> None:
     )
 
     GENERATOR_CLIENT = get_http_client(cfg.openai.generator)
-    Settings.llm = OpenAI(
+    Settings.llm = OpenAILike(
         model=cfg.openai.generator.model,
         api_base=cfg.openai.generator.base_url,
         api_key=get_key(cfg.openai.generator),
