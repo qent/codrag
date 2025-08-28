@@ -38,6 +38,15 @@
       "timeout_sec": 120,
       "retries": 3,
       "rate_limit_rps": 1
+    },
+    "query_rewriter": {
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-5-nano",
+      "api_key": "env:OPENAI_API_KEY_REW",
+      "verify_ssl": true,
+      "timeout_sec": 60,
+      "retries": 3,
+      "rate_limit_rps": 1
     }
   },
   "prompts": {
