@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -18,6 +19,8 @@ app = FastAPI()
 CONFIG: AppConfig | None = None
 QDRANT: QdrantClient | None = None
 LLAMA: LlamaIndexFacade | None = None
+QE: Any | None = None
+QE_CONFIG_ID: int | None = None
 
 
 class IndexRequest(BaseModel):
@@ -32,17 +35,33 @@ class QueryRequest(BaseModel):
     return_text_description: bool = False
 
 
-@app.on_event("startup")
-def _startup():
-    """Initialize configuration and shared clients."""
+def _build_query_engine() -> None:
+    """(Re)build the global query engine using current config."""
+
+    global QE, QE_CONFIG_ID
+    assert CONFIG and QDRANT and LLAMA
+    QE = build_query_engine(CONFIG, QDRANT, LLAMA)
+    QE_CONFIG_ID = id(CONFIG)
+
+
+def _load_config(config_path: Path) -> None:
+    """Load configuration and initialize shared clients."""
 
     global CONFIG, QDRANT, LLAMA
+    CONFIG = AppConfig.load(config_path)
+    QDRANT = QdrantClient(url=CONFIG.qdrant.url)
+    LLAMA = LlamaIndexFacade(CONFIG, QDRANT)
+    _build_query_engine()
+
+
+@app.on_event("startup")
+def _startup() -> None:
+    """Initialize configuration and shared clients."""
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.json")
     args, _ = parser.parse_known_args()
-    CONFIG = AppConfig.load(Path(args.config))
-    QDRANT = QdrantClient(url=CONFIG.qdrant.url)
-    LLAMA = LlamaIndexFacade(CONFIG, QDRANT)
+    _load_config(Path(args.config))
 
 
 @app.post("/v1/index")
@@ -61,8 +80,11 @@ def query_endpoint(req: QueryRequest):
     """Query indexed data and return matching items."""
 
     assert CONFIG and QDRANT and LLAMA
-    qe = build_query_engine(CONFIG, QDRANT, LLAMA)
-    result = qe.retrieve(req.q)
+    global QE
+    if QE is None or QE_CONFIG_ID != id(CONFIG):
+        _build_query_engine()
+    assert QE
+    result = QE.retrieve(req.q)
 
     if req.interfaces:
         from .interface_extractor import extract_public_interfaces
@@ -176,7 +198,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.json")
     args = parser.parse_args()
-    CONFIG = AppConfig.load(Path(args.config))
-    QDRANT = QdrantClient(url=CONFIG.qdrant.url)
-    LLAMA = LlamaIndexFacade(CONFIG, QDRANT)
+    _load_config(Path(args.config))
     uvicorn.run(app, host="0.0.0.0", port=CONFIG.http.port)
