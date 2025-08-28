@@ -37,7 +37,7 @@ class PathIndexer:
         self.llama = llama
         self.code_vs = llama.code_vs()
         self.file_vs = llama.file_vs()
-        self.dir_vs = llama.dir_vs()
+        self.dir_vs = llama.dir_vs() if cfg.features.process_directories else None
 
     def index_path(self, root: Path) -> IndexStats:
         """Index all files under ``root`` and return statistics."""
@@ -52,8 +52,10 @@ class PathIndexer:
                 stats.files_skipped_cache += 1
                 continue
             card_text = self._process_file(file_path, stats, text, file_hash)
-            dir_items.setdefault(file_path.parent, []).append(card_text)
-        self._generate_dir_cards(root, dir_items, stats)
+            if self.cfg.features.process_directories:
+                dir_items.setdefault(file_path.parent, []).append(card_text)
+        if self.cfg.features.process_directories:
+            self._generate_dir_cards(root, dir_items, stats)
         return stats
 
     def _scan_files(self, root: Path) -> List[Path]:
@@ -172,6 +174,8 @@ class PathIndexer:
     def _upsert_dir_card(self, dir_path: Path, card_text: str) -> None:
         """Write a directory card to the vector store."""
 
+        if not self.dir_vs:
+            return
         doc = Document(
             text=card_text,
             metadata={
@@ -186,7 +190,8 @@ class PathIndexer:
         self, root: Path, dir_items: Dict[Path, List[str]], stats: IndexStats
     ) -> None:
         """Generate and upsert directory cards bottom-up."""
-
+        if not self.cfg.features.process_directories or not self.dir_vs:
+            return
         processed: set[Path] = set()
         while True:
             pending = [p for p in dir_items.keys() if p not in processed]
