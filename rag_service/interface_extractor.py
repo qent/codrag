@@ -17,6 +17,10 @@ PUBLIC_NODE_TYPES = {
     "class_definition",
     "class_declaration",
     "interface_declaration",
+    "protocol_declaration",
+    "protocol_function_declaration",
+    "property_declaration",
+    "extension_declaration",
     "object_declaration",
     "struct_declaration",
     "struct_item",
@@ -53,7 +57,7 @@ def _is_public(name: str, signature: str, node: Node, lang: str) -> bool:
     if name.startswith("_") or name.startswith("#"):
         return False
     lower = signature.lower()
-    if any(mod in lower for mod in ("private", "protected", "internal")):
+    if any(mod in lower for mod in ("private", "protected", "internal", "fileprivate")):
         return False
     if lang == "java":
         if "public" not in lower:
@@ -66,6 +70,14 @@ def _is_public(name: str, signature: str, node: Node, lang: str) -> bool:
                 ancestor = ancestor.parent
             if not found_interface:
                 return False
+    if lang == "swift":
+        if "public" not in lower and "open" not in lower:
+            ancestor = node.parent
+            while ancestor is not None:
+                if ancestor.type == "protocol_declaration":
+                    return True
+                ancestor = ancestor.parent
+            return False
     if lang == "rust":
         if not lower.startswith("pub"):
             return False
