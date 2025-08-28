@@ -77,9 +77,9 @@ def test_simple_retriever_uses_query_rewriter(monkeypatch) -> None:
     file_vs = object()
     dir_vs = object()
     llama = SimpleNamespace(
-        code_vs=lambda: code_vs,
-        file_vs=lambda: file_vs,
-        dir_vs=lambda: dir_vs,
+        code_vs=lambda prefix: code_vs,
+        file_vs=lambda prefix: file_vs,
+        dir_vs=lambda prefix: dir_vs,
     )
 
     def from_vs(vs):  # type: ignore[override]
@@ -100,7 +100,7 @@ def test_simple_retriever_uses_query_rewriter(monkeypatch) -> None:
         "rag_service.retriever.expand_queries", lambda q, cfg, n: ["alt1", "alt2"]
     )
 
-    retriever = build_query_engine(cfg, qdrant=None, llama=llama)
+    retriever = build_query_engine(cfg, qdrant=None, llama=llama, collection_prefix="test_")
     retriever.retrieve("orig")
     assert code_ret.queries == ["origc", "alt1c", "alt2c"]
     assert file_ret.queries == ["origf", "alt1f", "alt2f"]
@@ -151,9 +151,9 @@ def test_retriever_skips_directories_when_flag_disabled(monkeypatch) -> None:
     file_vs = object()
     dir_vs = object()
     llama = SimpleNamespace(
-        code_vs=lambda: code_vs,
-        file_vs=lambda: file_vs,
-        dir_vs=lambda: dir_vs,
+        code_vs=lambda prefix: code_vs,
+        file_vs=lambda prefix: file_vs,
+        dir_vs=lambda prefix: dir_vs,
     )
 
     def from_vs(vs):  # type: ignore[override]
@@ -174,7 +174,7 @@ def test_retriever_skips_directories_when_flag_disabled(monkeypatch) -> None:
         "rag_service.retriever.expand_queries", lambda q, cfg, n: ["alt1", "alt2"]
     )
 
-    retriever = build_query_engine(cfg, qdrant=None, llama=llama)
+    retriever = build_query_engine(cfg, qdrant=None, llama=llama, collection_prefix="test_")
     retriever.retrieve("orig")
     assert code_ret.queries == ["origc", "alt1c", "alt2c"]
     assert file_ret.queries == ["origf", "alt1f", "alt2f"]

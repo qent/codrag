@@ -34,7 +34,7 @@ def test_file_path_prefix_in_results(tmp_path: Path, monkeypatch: MonkeyPatch) -
         def retrieve(self, q: str):  # type: ignore[override]
             return results
 
-    def fake_build_query_engine(cfg, qdrant, llama):  # type: ignore[unused-argument]
+    def fake_build_query_engine(cfg, qdrant, llama, collection_prefix):  # type: ignore[unused-argument]
         return Retriever()
 
     class ScrollPoint:
@@ -51,14 +51,14 @@ def test_file_path_prefix_in_results(tmp_path: Path, monkeypatch: MonkeyPatch) -
         "Cfg",
         (),
         {
-            "qdrant": type("Q", (), {"collection_prefix": ""})(),
+            "qdrant": object(),
             "features": type("F", (), {"file_path_prefix": "/prefix/"})(),
         },
     )()
     main.QDRANT = FakeQdrant()
     main.LLAMA = object()
 
-    resp = main.query_endpoint(main.QueryRequest(q="test"))
+    resp = main.query_endpoint(main.QueryRequest(root_path=str(tmp_path), q="test"))
     assert all(
         item["metadata"].get("file_path", "").startswith("/prefix/") for item in resp["items"]
     )

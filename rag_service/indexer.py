@@ -31,13 +31,22 @@ class IndexStats:
 class PathIndexer:
     """Index files under a root directory."""
 
-    def __init__(self, cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFacade) -> None:
+    def __init__(
+        self,
+        cfg: AppConfig,
+        qdrant: QdrantClient,
+        llama: LlamaIndexFacade,
+        collection_prefix: str,
+    ) -> None:
         self.cfg = cfg
         self.qdrant = qdrant
         self.llama = llama
-        self.code_vs = llama.code_vs()
-        self.file_vs = llama.file_vs()
-        self.dir_vs = llama.dir_vs() if cfg.features.process_directories else None
+        self.collection_prefix = collection_prefix
+        self.code_vs = llama.code_vs(collection_prefix)
+        self.file_vs = llama.file_vs(collection_prefix)
+        self.dir_vs = (
+            llama.dir_vs(collection_prefix) if cfg.features.process_directories else None
+        )
 
     def index_path(self, root: Path) -> IndexStats:
         """Index all files under ``root`` and return statistics."""
@@ -85,7 +94,7 @@ class PathIndexer:
     def _is_cached(self, file_path: Path, file_hash: str) -> bool:
         """Return ``True`` if ``file_path`` with ``file_hash`` exists in Qdrant."""
 
-        collection = f"{self.cfg.qdrant.collection_prefix}file_cards"
+        collection = f"{self.collection_prefix}file_cards"
         flt = Filter(
             must=[
                 FieldCondition(key="file_path", match=MatchValue(value=str(file_path))),
@@ -209,9 +218,15 @@ class PathIndexer:
 
 
 def index_path(
-    root: Path, cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFacade | None = None
+    root: Path,
+    cfg: AppConfig,
+    qdrant: QdrantClient,
+    llama: LlamaIndexFacade | None = None,
 ) -> IndexStats:
     """Index a path and return statistics."""
 
+    from .collection_utils import collection_prefix_from_path
+
     llama = llama or LlamaIndexFacade(cfg, qdrant)
-    return PathIndexer(cfg, qdrant, llama).index_path(root)
+    prefix = collection_prefix_from_path(root)
+    return PathIndexer(cfg, qdrant, llama, prefix).index_path(root)

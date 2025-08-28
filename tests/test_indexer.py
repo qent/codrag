@@ -11,6 +11,7 @@ from rag_service.config import AppConfig
 from rag_service.indexer import index_path
 from rag_service.llama_facade import LlamaIndexFacade
 from rag_service.retriever import build_query_engine
+from rag_service.collection_utils import collection_prefix_from_path
 
 
 class DummyEmbedding(BaseEmbedding):
@@ -58,7 +59,8 @@ def test_index_and_query(tmp_path):
     assert stats.code_nodes_upserted > 0
     assert stats.dir_cards_upserted > 0
 
-    qe = build_query_engine(cfg, qdrant, llama)
+    prefix = collection_prefix_from_path(src)
+    qe = build_query_engine(cfg, qdrant, llama, prefix)
     res = qe.retrieve("Foo")
     assert any(n.node.metadata.get("type") == "dir_card" for n in res)
 
@@ -77,7 +79,8 @@ def test_directories_skipped_by_default(tmp_path):
     stats = index_path(src, cfg, qdrant, llama)
     assert stats.dir_cards_upserted == 0
 
-    qe = build_query_engine(cfg, qdrant, llama)
+    prefix = collection_prefix_from_path(src)
+    qe = build_query_engine(cfg, qdrant, llama, prefix)
     res = qe.retrieve("Foo")
     assert all(n.node.metadata.get("type") != "dir_card" for n in res)
 

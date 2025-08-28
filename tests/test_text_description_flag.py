@@ -34,7 +34,7 @@ def test_query_endpoint_text_description_flag(tmp_path: Path, monkeypatch: Monke
         def retrieve(self, q: str):  # type: ignore[override]
             return results
 
-    def fake_build_query_engine(cfg, qdrant, llama):  # type: ignore[unused-argument]
+    def fake_build_query_engine(cfg, qdrant, llama, collection_prefix):  # type: ignore[unused-argument]
         return Retriever()
 
     class ScrollPoint:
@@ -47,14 +47,16 @@ def test_query_endpoint_text_description_flag(tmp_path: Path, monkeypatch: Monke
             return [ScrollPoint("scroll code", metadata)], None
 
     monkeypatch.setattr(main, "build_query_engine", fake_build_query_engine)
-    main.CONFIG = type("Cfg", (), {"qdrant": type("Q", (), {"collection_prefix": ""})()})()
+    main.CONFIG = type("Cfg", (), {"features": type("F", (), {})(), "qdrant": object()})()
     main.QDRANT = FakeQdrant()
     main.LLAMA = object()
 
-    resp = main.query_endpoint(main.QueryRequest(q="test", return_text_description=True))
+    resp = main.query_endpoint(
+        main.QueryRequest(root_path=str(tmp_path), q="test", return_text_description=True)
+    )
     assert any(item["type"] == "file_card" for item in resp["items"])
 
-    resp = main.query_endpoint(main.QueryRequest(q="test"))
+    resp = main.query_endpoint(main.QueryRequest(root_path=str(tmp_path), q="test"))
     types = {item["type"] for item in resp["items"]}
     assert "file_card" not in types
     assert any(item["text"] == "scroll code" for item in resp["items"])

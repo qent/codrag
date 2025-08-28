@@ -57,13 +57,20 @@ def fuse_results(
         rescored += _relative_rescore(dir_nodes, dir_weight)
     return sorted(rescored, key=lambda n: n.score, reverse=True)
 
-def build_query_engine(cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFacade | None = None):
+def build_query_engine(
+    cfg: AppConfig,
+    qdrant: QdrantClient,
+    llama: LlamaIndexFacade | None = None,
+    collection_prefix: str = "",
+):
     """Build a simple retriever combining code, file and directory indexes."""
 
     llama = llama or LlamaIndexFacade(cfg, qdrant)
-    code_vs = llama.code_vs()
-    file_vs = llama.file_vs()
-    dir_vs = llama.dir_vs() if cfg.features.process_directories else None
+    code_vs = llama.code_vs(collection_prefix)
+    file_vs = llama.file_vs(collection_prefix)
+    dir_vs = (
+        llama.dir_vs(collection_prefix) if cfg.features.process_directories else None
+    )
 
     code_ret = VectorStoreIndex.from_vector_store(code_vs).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.code_nodes_top_k
