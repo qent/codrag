@@ -1,7 +1,7 @@
 {
   "version": 1,
   "indexing": {
-    "include_extensions": [".kt", ".java"],
+    "include_extensions": [".kt", ".java", ".swift"],
     "blacklist": [
       "*/build/*",
       "*/.git/*",
@@ -17,7 +17,8 @@
     "max_chars": 2000,
     "languages": {
       ".kt": "kotlin",
-      ".java": "java"
+      ".java": "java",
+      ".swift": "swift"
     }
   },
   "openai": {

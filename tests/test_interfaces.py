@@ -198,6 +198,41 @@ LANG_CASES = {
         ],
         "unexpected": ["privateStruct", "privateFunc"],
     },
+    "swift": {
+        "ext": "swift",
+        "code": (
+            "public protocol Sample {\n"
+            "    func protoFunc()\n"
+            "    private func hidden()\n"
+            "}\n"
+            "public class Example {\n"
+            "    public func publicMethod() {}\n"
+            "    internal func internalMethod() {}\n"
+            "    private func privateMethod() {}\n"
+            "}\n"
+            "public struct MyStruct {\n"
+            "    public var field: Int\n"
+            "    var hidden: Int\n"
+            "}\n"
+            "public func topLevel() {}\n"
+            "func internalFunc() {}\n"
+        ),
+        "expected": [
+            "public protocol Sample { [1:4]",
+            "func protoFunc() [2:2]",
+            "public class Example { [5:9]",
+            "public func publicMethod() { [6:6]",
+            "public struct MyStruct { [10:13]",
+            "public var field: [11:11]",
+            "public func topLevel() { [14:14]",
+        ],
+        "unexpected": [
+            "hidden",
+            "internalMethod",
+            "privateMethod",
+            "internalFunc",
+        ],
+    },
 }
 
 
