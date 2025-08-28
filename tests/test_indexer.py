@@ -51,6 +51,7 @@ def test_index_and_query(tmp_path):
     (pkg / "Test.kt").write_text(code)
 
     cfg = AppConfig.load(Path("config.json"))
+    cfg.features.process_directories = True
     qdrant = QdrantClient(location=":memory:")
     llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
     stats = index_path(src, cfg, qdrant, llama)
@@ -60,6 +61,25 @@ def test_index_and_query(tmp_path):
     qe = build_query_engine(cfg, qdrant, llama)
     res = qe.retrieve("Foo")
     assert any(n.node.metadata.get("type") == "dir_card" for n in res)
+
+
+def test_directories_skipped_by_default(tmp_path):
+    """Directory cards are not generated when the feature flag is disabled."""
+
+    src = tmp_path / "src"
+    src.mkdir()
+    code = "class Foo { fun bar() {} }"
+    (src / "Test.kt").write_text(code)
+
+    cfg = AppConfig.load(Path("config.json"))
+    qdrant = QdrantClient(location=":memory:")
+    llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
+    stats = index_path(src, cfg, qdrant, llama)
+    assert stats.dir_cards_upserted == 0
+
+    qe = build_query_engine(cfg, qdrant, llama)
+    res = qe.retrieve("Foo")
+    assert all(n.node.metadata.get("type") != "dir_card" for n in res)
 
 
 class CaptureLLM(MockLLM):

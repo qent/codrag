@@ -63,7 +63,7 @@ def build_query_engine(cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFa
     llama = llama or LlamaIndexFacade(cfg, qdrant)
     code_vs = llama.code_vs()
     file_vs = llama.file_vs()
-    dir_vs = llama.dir_vs()
+    dir_vs = llama.dir_vs() if cfg.features.process_directories else None
 
     code_ret = VectorStoreIndex.from_vector_store(code_vs).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.code_nodes_top_k
@@ -71,9 +71,12 @@ def build_query_engine(cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFa
     file_ret = VectorStoreIndex.from_vector_store(file_vs).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.file_cards_top_k
     )
-    dir_ret = VectorStoreIndex.from_vector_store(dir_vs).as_retriever(
-        similarity_top_k=cfg.llamaindex.retrieval.dir_cards_top_k
-    )
+    if cfg.features.process_directories and dir_vs is not None:
+        dir_ret = VectorStoreIndex.from_vector_store(dir_vs).as_retriever(
+            similarity_top_k=cfg.llamaindex.retrieval.dir_cards_top_k
+        )
+    else:
+        dir_ret = None
 
     fusion_mode = cfg.llamaindex.retrieval.fusion_mode
     code_weight = getattr(cfg.llamaindex.retrieval, "code_weight", 1.0)
@@ -97,11 +100,12 @@ def build_query_engine(cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFa
                 )
                 code_nodes.extend(code_ret.retrieve(code_q))
                 file_nodes.extend(file_ret.retrieve(file_q))
-                dir_nodes.extend(dir_ret.retrieve(dir_q))
+                if cfg.features.process_directories and dir_ret is not None:
+                    dir_nodes.extend(dir_ret.retrieve(dir_q))
             return fuse_results(
                 code_nodes,
                 file_nodes,
-                dir_nodes,
+                dir_nodes if cfg.features.process_directories else None,
                 fusion_mode,
                 code_weight,
                 file_weight,

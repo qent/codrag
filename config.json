@@ -81,7 +81,8 @@
     "cache_llm_cards": true,
     "skip_on_llm_error": true,
     "concurrency": 6,
-    "file_path_prefix": ""
+    "file_path_prefix": "",
+    "process_directories": false
   },
   "logging": {
     "level": "INFO",
