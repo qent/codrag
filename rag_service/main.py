@@ -36,6 +36,18 @@ class QueryRequest(BaseModel):
     return_text_description: bool = False
 
 
+def _with_file_path_prefix(metadata: dict) -> dict:
+    """Return a copy of ``metadata`` with configured file path prefix applied."""
+
+    assert CONFIG
+    features = getattr(CONFIG, "features", None)
+    prefix = getattr(features, "file_path_prefix", "")
+    file_path = metadata.get("file_path")
+    if prefix and file_path:
+        return {**metadata, "file_path": prefix + file_path}
+    return dict(metadata)
+
+
 def _build_query_engine() -> None:
     """(Re)build the global query engine using current config."""
 
@@ -110,12 +122,13 @@ def query_endpoint(req: QueryRequest):
                 continue
             seen.add(file_path)
             interfaces = extract_public_interfaces(Path(file_path), lang)
+            metadata = _with_file_path_prefix({"file_path": file_path, "lang": lang})
             items.append(
                 {
                     "type": "file_interface",
                     "score": r.score,
                     "interfaces": interfaces,
-                    "metadata": {"file_path": file_path, "lang": lang},
+                    "metadata": metadata,
                 }
             )
     else:
@@ -125,7 +138,7 @@ def query_endpoint(req: QueryRequest):
                     "type": r.node.metadata.get("type", "code_node"),
                     "score": r.score,
                     "text": r.node.get_content(),
-                    "metadata": r.node.metadata,
+                    "metadata": _with_file_path_prefix(r.node.metadata),
                 }
                 for r in result
             ]
@@ -146,7 +159,7 @@ def query_endpoint(req: QueryRequest):
                             "type": node_type,
                             "score": r.score,
                             "text": r.node.get_content(),
-                            "metadata": r.node.metadata,
+                            "metadata": _with_file_path_prefix(r.node.metadata),
                         }
                     )
     return {"status": "ok", "items": items}
@@ -170,7 +183,7 @@ def _fetch_code_nodes(file_path: str, score: float) -> list[dict]:
                 "type": payload.get("type", "code_node"),
                 "score": score,
                 "text": payload.get("text", ""),
-                "metadata": payload,
+                "metadata": _with_file_path_prefix(payload),
             }
         )
     return items
