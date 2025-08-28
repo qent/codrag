@@ -35,6 +35,7 @@ class OpenAIClientConfig(BaseModel):
 class OpenAIConfig(BaseModel):
     embeddings: OpenAIClientConfig
     generator: OpenAIClientConfig
+    query_rewriter: OpenAIClientConfig
 
 
 class PromptsConfig(BaseModel):
@@ -109,4 +110,5 @@ class AppConfig(BaseModel):
         data = self.dict()
         data["openai"]["embeddings"].pop("api_key", None)
         data["openai"]["generator"].pop("api_key", None)
+        data["openai"]["query_rewriter"].pop("api_key", None)
         return data

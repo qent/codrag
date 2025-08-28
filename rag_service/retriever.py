@@ -8,6 +8,7 @@ from qdrant_client import QdrantClient
 
 from .config import AppConfig
 from .llama_facade import LlamaIndexFacade
+from .query_rewriter import rewrite_for_collections
 
 
 def _relative_rescore(nodes: Sequence[NodeWithScore], weight: float) -> List[NodeWithScore]:
@@ -82,9 +83,12 @@ def build_query_engine(cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFa
 
     class SimpleRetriever:
         def retrieve(self, query: str):
-            code_nodes = code_ret.retrieve(query)
-            file_nodes = file_ret.retrieve(query)
-            dir_nodes = dir_ret.retrieve(query)
+            code_q, file_q, dir_q = rewrite_for_collections(
+                query, cfg.openai.query_rewriter
+            )
+            code_nodes = code_ret.retrieve(code_q)
+            file_nodes = file_ret.retrieve(file_q)
+            dir_nodes = dir_ret.retrieve(dir_q)
             return fuse_results(
                 code_nodes,
                 file_nodes,
