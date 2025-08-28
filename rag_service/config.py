@@ -76,6 +76,7 @@ class FeaturesConfig(BaseModel):
     cache_llm_cards: bool = True
     skip_on_llm_error: bool = True
     concurrency: int = 6
+    file_path_prefix: str | None = None
 
 
 class LoggingConfig(BaseModel):

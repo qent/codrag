@@ -80,7 +80,8 @@
   "features": {
     "cache_llm_cards": true,
     "skip_on_llm_error": true,
-    "concurrency": 6
+    "concurrency": 6,
+    "file_path_prefix": ""
   },
   "logging": {
     "level": "INFO",
