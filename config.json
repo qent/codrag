@@ -57,7 +57,10 @@
       "code_nodes_top_k": 6,
       "file_cards_top_k": 4,
       "dir_cards_top_k": 2,
-      "fusion_mode": "relative_score"
+      "fusion_mode": "relative_score",
+      "code_weight": 1.0,
+      "file_weight": 1.0,
+      "rrf_k": 60
     }
   },
   "http": {

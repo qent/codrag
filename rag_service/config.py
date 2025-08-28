@@ -55,6 +55,9 @@ class RetrievalConfig(BaseModel):
     file_cards_top_k: int = 4
     dir_cards_top_k: int = 2
     fusion_mode: str = "relative_score"
+    code_weight: float = 1.0
+    file_weight: float = 1.0
+    rrf_k: int = 60
 
 
 class LlamaIndexConfig(BaseModel):
