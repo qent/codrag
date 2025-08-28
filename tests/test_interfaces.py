@@ -15,9 +15,9 @@ def test_extract_public_interfaces(tmp_path):
     file_path = tmp_path / "sample.py"
     file_path.write_text(src)
     interfaces = extract_public_interfaces(file_path, "python")
-    assert "class Example:" in interfaces
-    assert "def public(self):" in interfaces
-    assert "def standalone():" in interfaces
+    assert "class Example: [1:5]" in interfaces
+    assert "def public(self): [2:3]" in interfaces
+    assert "def standalone(): [7:8]" in interfaces
     assert all("_private" not in s for s in interfaces)
     assert all("_helper" not in s for s in interfaces)
 
@@ -52,4 +52,4 @@ def test_query_endpoint_interfaces(tmp_path, monkeypatch):
     main.LLAMA = object()
 
     resp = main.query_endpoint(main.QueryRequest(q="test", interfaces=True))
-    assert resp["items"][0]["interfaces"] == ["def foo():"]
+    assert resp["items"][0]["interfaces"] == ["def foo(): [1:2]"]
