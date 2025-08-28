@@ -53,6 +53,7 @@ def init_llamaindex_clients(cfg: AppConfig) -> None:
         api_base=cfg.openai.generator.base_url,
         api_key=get_key(cfg.openai.generator),
         http_client=GENERATOR_CLIENT,
+        is_chat_model=True,
     )
 
 

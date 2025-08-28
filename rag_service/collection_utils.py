@@ -14,4 +14,4 @@ def collection_prefix_from_path(path: str | Path) -> str:
     p = Path(path)
     parts = [re.sub(r"[^0-9A-Za-z]+", "_", part).strip("_") for part in p.parts]
     parts = [part for part in parts if part]
-    return ("_".join(parts) + "_") if parts else ""
+    return ("_".join(parts) + "_").lower() if parts else ""
