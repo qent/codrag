@@ -13,6 +13,7 @@ from .config import AppConfig
 from .indexer import index_path
 from .llama_facade import LlamaIndexFacade
 from .retriever import build_query_engine
+from .openai_utils import close_llamaindex_clients
 
 app = FastAPI()
 CONFIG: AppConfig | None = None
@@ -43,6 +44,17 @@ def _startup():
     CONFIG = AppConfig.load(Path(args.config))
     QDRANT = QdrantClient(url=CONFIG.qdrant.url)
     LLAMA = LlamaIndexFacade(CONFIG, QDRANT)
+
+
+@app.on_event("shutdown")
+def _shutdown():
+    """Close OpenAI clients.
+
+    When ``LlamaIndexFacade`` is used outside FastAPI, invoke this handler
+    directly to release HTTP resources.
+    """
+
+    close_llamaindex_clients()
 
 
 @app.post("/v1/index")
