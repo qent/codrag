@@ -17,6 +17,8 @@ from .config import OpenAIClientConfig
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "query_rewriter.md"
 _PROMPT_TMPL = ChatPromptTemplate.from_template(_PROMPT_PATH.read_text())
+_EXPAND_PATH = Path(__file__).resolve().parent.parent / "prompts" / "query_expander.md"
+_EXPAND_TMPL = ChatPromptTemplate.from_template(_EXPAND_PATH.read_text())
 
 
 class _Queries(BaseModel):
@@ -25,6 +27,12 @@ class _Queries(BaseModel):
     code: str = Field(description="Query for code snippets")
     file: str = Field(description="Query for file descriptions")
     dir: str = Field(description="Query for directory overviews")
+
+
+class _Expansions(BaseModel):
+    """Structured output for alternative phrasings."""
+
+    alternatives: list[str] = Field(default_factory=list, description="Alternative phrasings")
 
 
 def _build_llm(cfg: OpenAIClientConfig | None) -> BaseChatModel | None:
@@ -72,4 +80,33 @@ def rewrite_for_collections(
     chain = _PROMPT_TMPL | llm.with_structured_output(_Queries)
     data = chain.invoke({"query": query})
     return data.code, data.file, data.dir
+
+
+def expand_queries(
+    query: str, cfg: OpenAIClientConfig | None = None, n: int = 4
+) -> list[str]:
+    """Generate up to ``n`` alternative phrasings for ``query`` using ``cfg``.
+
+    Parameters
+    ----------
+    query:
+        Original user query.
+    cfg:
+        Configuration for the LLM. When ``None`` or misconfigured an empty list
+        is returned.
+    n:
+        Maximum number of paraphrases to generate.
+
+    Returns
+    -------
+    list[str]
+        Alternative phrasings of ``query``.
+    """
+
+    llm = _build_llm(cfg)
+    if llm is None:
+        return []
+    chain = _EXPAND_TMPL | llm.with_structured_output(_Expansions)
+    data = chain.invoke({"query": query, "n": n})
+    return data.alternatives
 

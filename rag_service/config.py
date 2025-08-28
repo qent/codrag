@@ -59,6 +59,7 @@ class RetrievalConfig(BaseModel):
     code_weight: float = 1.0
     file_weight: float = 1.0
     rrf_k: int = 60
+    max_expansions: int = 0
 
 
 class LlamaIndexConfig(BaseModel):

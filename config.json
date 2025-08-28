@@ -69,7 +69,8 @@
       "fusion_mode": "relative_score",
       "code_weight": 1.0,
       "file_weight": 1.0,
-      "rrf_k": 60
+      "rrf_k": 60,
+      "max_expansions": 0
     }
   },
   "http": {
