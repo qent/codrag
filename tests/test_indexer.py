@@ -113,3 +113,24 @@ def test_scan_respects_blacklist(tmp_path):
     llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
     stats = index_path(src, cfg, qdrant, llama)
     assert stats.files_total == 0
+
+
+def test_skip_cached_files(tmp_path):
+    """Ensure unchanged files are not indexed again."""
+
+    src = tmp_path / "src"
+    src.mkdir()
+    code = "class Foo { fun bar() {} }"
+    (src / "Test.kt").write_text(code)
+
+    cfg = AppConfig.load(Path("config.json"))
+    qdrant = QdrantClient(location=":memory:")
+    llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
+
+    first = index_path(src, cfg, qdrant, llama)
+    assert first.files_processed == 1
+
+    second = index_path(src, cfg, qdrant, llama)
+    assert second.files_skipped_cache == 1
+    assert second.files_processed == 0
+    assert second.code_nodes_upserted == 0

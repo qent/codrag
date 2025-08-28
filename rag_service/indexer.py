@@ -10,6 +10,7 @@ from typing import List, Tuple
 from llama_index.core import Document, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import CodeSplitter
 from qdrant_client import QdrantClient
+from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
 from .config import AppConfig
 from .llama_facade import LlamaIndexFacade
@@ -32,6 +33,7 @@ class PathIndexer:
 
     def __init__(self, cfg: AppConfig, qdrant: QdrantClient, llama: LlamaIndexFacade) -> None:
         self.cfg = cfg
+        self.qdrant = qdrant
         self.llama = llama
         self.code_vs = llama.code_vs()
         self.file_vs = llama.file_vs()
@@ -43,7 +45,11 @@ class PathIndexer:
         files = self._scan_files(root)
         stats.files_total = len(files)
         for file_path in files:
-            self._process_file(file_path, stats)
+            text, file_hash = self._read_file(file_path)
+            if self._is_cached(file_path, file_hash):
+                stats.files_skipped_cache += 1
+                continue
+            self._process_file(file_path, stats, text, file_hash)
         return stats
 
     def _scan_files(self, root: Path) -> List[Path]:
@@ -69,6 +75,22 @@ class PathIndexer:
         text = file_path.read_text(encoding="utf-8", errors="ignore")
         file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
         return text, file_hash
+
+    def _is_cached(self, file_path: Path, file_hash: str) -> bool:
+        """Return ``True`` if ``file_path`` with ``file_hash`` exists in Qdrant."""
+
+        collection = f"{self.cfg.qdrant.collection_prefix}file_cards"
+        flt = Filter(
+            must=[
+                FieldCondition(key="file_path", match=MatchValue(value=str(file_path))),
+                FieldCondition(key="file_hash", match=MatchValue(value=file_hash)),
+            ]
+        )
+        try:
+            points, _ = self.qdrant.scroll(collection, limit=1, scroll_filter=flt)
+            return bool(points)
+        except Exception:
+            return False
 
     def _create_nodes(self, text: str, file_path: Path, file_hash: str):
         """Create code nodes for a file."""
@@ -125,11 +147,10 @@ class PathIndexer:
         )
         VectorStoreIndex([doc], storage_context=StorageContext.from_defaults(vector_store=self.file_vs))
 
-    def _process_file(self, file_path: Path, stats: IndexStats) -> None:
+    def _process_file(self, file_path: Path, stats: IndexStats, text: str, file_hash: str) -> None:
         """Index a single file and update ``stats``."""
 
         stats.files_processed += 1
-        text, file_hash = self._read_file(file_path)
         nodes = self._create_nodes(text, file_path, file_hash)
         stats.code_nodes_upserted += self._upsert_code_nodes(nodes)
         card_text = self._generate_file_card(file_path, text)
