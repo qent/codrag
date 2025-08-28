@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
+from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
 from .config import AppConfig
 from .indexer import index_path
@@ -28,6 +29,7 @@ class QueryRequest(BaseModel):
     q: str
     top_k: int = 10
     interfaces: bool = False
+    return_text_description: bool = False
 
 
 @app.on_event("startup")
@@ -83,16 +85,61 @@ def query_endpoint(req: QueryRequest):
                 }
             )
     else:
-        items = [
-            {
-                "type": r.node.metadata.get("type", "code_node"),
-                "score": r.score,
-                "text": r.node.get_content(),
-                "metadata": r.node.metadata,
-            }
-            for r in result
-        ]
+        if req.return_text_description:
+            items = [
+                {
+                    "type": r.node.metadata.get("type", "code_node"),
+                    "score": r.score,
+                    "text": r.node.get_content(),
+                    "metadata": r.node.metadata,
+                }
+                for r in result
+            ]
+        else:
+            items = []
+            seen_files: set[str] = set()
+            for r in result:
+                node_type = r.node.metadata.get("type", "code_node")
+                if node_type == "file_card":
+                    file_path = r.node.metadata.get("file_path")
+                    if not file_path or file_path in seen_files:
+                        continue
+                    seen_files.add(file_path)
+                    items.extend(_fetch_code_nodes(file_path, r.score))
+                else:
+                    items.append(
+                        {
+                            "type": node_type,
+                            "score": r.score,
+                            "text": r.node.get_content(),
+                            "metadata": r.node.metadata,
+                        }
+                    )
     return {"status": "ok", "items": items}
+
+
+def _fetch_code_nodes(file_path: str, score: float) -> list[dict]:
+    """Return code node items for ``file_path``."""
+
+    assert CONFIG and QDRANT
+    flt = Filter(
+        must=[FieldCondition(key="file_path", match=MatchValue(value=file_path))]
+    )
+    points, _ = QDRANT.scroll(
+        f"{CONFIG.qdrant.collection_prefix}code_nodes", limit=100, scroll_filter=flt
+    )
+    items: list[dict] = []
+    for p in points:
+        payload = p.payload or {}
+        items.append(
+            {
+                "type": payload.get("type", "code_node"),
+                "score": score,
+                "text": payload.get("text", ""),
+                "metadata": payload,
+            }
+        )
+    return items
 
 
 @app.get("/v1/config")
