@@ -51,8 +51,7 @@
   },
   "prompts": {
     "file_card_md": "./prompts/file_card.md",
-    "dir_card_md": "./prompts/dir_card.md",
-    "generate_dir_cards": false
+    "dir_card_md": "./prompts/dir_card.md"
   },
   "qdrant": {
     "url": "http://localhost:6333",

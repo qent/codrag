@@ -51,7 +51,6 @@ def test_index_and_query(tmp_path):
     (pkg / "Test.kt").write_text(code)
 
     cfg = AppConfig.load(Path("config.json"))
-    cfg.prompts.generate_dir_cards = True
     qdrant = QdrantClient(location=":memory:")
     llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
     stats = index_path(src, cfg, qdrant, llama)

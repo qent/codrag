@@ -52,10 +52,8 @@ class PathIndexer:
                 stats.files_skipped_cache += 1
                 continue
             card_text = self._process_file(file_path, stats, text, file_hash)
-            if self.cfg.prompts.generate_dir_cards:
-                dir_items.setdefault(file_path.parent, []).append(card_text)
-        if self.cfg.prompts.generate_dir_cards:
-            self._generate_dir_cards(root, dir_items, stats)
+            dir_items.setdefault(file_path.parent, []).append(card_text)
+        self._generate_dir_cards(root, dir_items, stats)
         return stats
 
     def _scan_files(self, root: Path) -> List[Path]:
@@ -133,10 +131,7 @@ class PathIndexer:
 
         prompt = Path(self.cfg.prompts.file_card_md).read_text()
         prompt += f"\nFilename: {file_path.name}\n```{file_text}```\n"
-        try:
-            return self.llama.llm().complete(prompt).text
-        except Exception:
-            return f"Description for {file_path.name}"
+        return self.llama.llm().complete(prompt).text
 
     def _upsert_file_card(self, file_path: Path, file_hash: str, card_text: str) -> None:
         """Write the file card to the vector store."""
@@ -172,10 +167,7 @@ class PathIndexer:
         prompt = Path(self.cfg.prompts.dir_card_md).read_text()
         prompt += f"\nDirectory: {dir_path.name}\n"
         prompt += "\n".join(items) + "\n"
-        try:
-            return self.llama.llm().complete(prompt).text
-        except Exception:
-            return f"Description for {dir_path.name}"
+        return self.llama.llm().complete(prompt).text
 
     def _upsert_dir_card(self, dir_path: Path, card_text: str) -> None:
         """Write a directory card to the vector store."""

@@ -41,7 +41,6 @@ class OpenAIConfig(BaseModel):
 class PromptsConfig(BaseModel):
     file_card_md: str
     dir_card_md: str
-    generate_dir_cards: bool = False
 
 
 class QdrantConfig(BaseModel):
