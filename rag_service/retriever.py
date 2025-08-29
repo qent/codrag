@@ -101,14 +101,28 @@ def build_query_engine(
             code_nodes: List[NodeWithScore] = []
             file_nodes: List[NodeWithScore] = []
             dir_nodes: List[NodeWithScore] = []
+            seen: set[str] = set()
+
+            def _extend_unique(
+                nodes: Sequence[NodeWithScore], dest: List[NodeWithScore]
+            ) -> None:
+                """Append ``nodes`` to ``dest`` if their IDs are unseen."""
+
+                for node in nodes:
+                    node_id = node.node.node_id
+                    if node_id in seen:
+                        continue
+                    seen.add(node_id)
+                    dest.append(node)
+
             for q in queries:
                 code_q, file_q, dir_q = rewrite_for_collections(
                     q, cfg.openai.query_rewriter
                 )
-                code_nodes.extend(code_ret.retrieve(code_q))
-                file_nodes.extend(file_ret.retrieve(file_q))
+                _extend_unique(code_ret.retrieve(code_q), code_nodes)
+                _extend_unique(file_ret.retrieve(file_q), file_nodes)
                 if cfg.features.process_directories and dir_ret is not None:
-                    dir_nodes.extend(dir_ret.retrieve(dir_q))
+                    _extend_unique(dir_ret.retrieve(dir_q), dir_nodes)
             return fuse_results(
                 code_nodes,
                 file_nodes,

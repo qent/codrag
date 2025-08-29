@@ -179,3 +179,69 @@ def test_retriever_skips_directories_when_flag_disabled(monkeypatch) -> None:
     assert code_ret.queries == ["origc", "alt1c", "alt2c"]
     assert file_ret.queries == ["origf", "alt1f", "alt2f"]
     assert dir_ret.queries == []
+
+
+def test_simple_retriever_filters_duplicate_nodes(monkeypatch) -> None:
+    """SimpleRetriever should remove duplicate nodes across queries and retrievers."""
+
+    retrieval_cfg = SimpleNamespace(
+        code_nodes_top_k=1,
+        file_cards_top_k=1,
+        dir_cards_top_k=1,
+        fusion_mode="relative_score",
+        code_weight=1.0,
+        file_weight=1.0,
+        dir_weight=1.0,
+        rrf_k=60,
+        max_expansions=1,
+    )
+    query_rewriter_cfg = SimpleNamespace(
+        model="m",
+        base_url="http://localhost",
+        api_key="k",
+        verify_ssl=True,
+        timeout_sec=60,
+        retries=0,
+    )
+    cfg = SimpleNamespace(
+        llamaindex=SimpleNamespace(retrieval=retrieval_cfg),
+        openai=SimpleNamespace(query_rewriter=query_rewriter_cfg),
+        features=SimpleNamespace(process_directories=False),
+    )
+
+    class DummyRet:
+        def retrieve(self, query: str):  # pragma: no cover - simple stub
+            return [_node("dup", 0.9)]
+
+    code_ret = DummyRet()
+    file_ret = DummyRet()
+
+    code_vs = object()
+    file_vs = object()
+    llama = SimpleNamespace(
+        code_vs=lambda prefix: code_vs,
+        file_vs=lambda prefix: file_vs,
+        dir_vs=lambda prefix: None,
+    )
+
+    def from_vs(vs):  # type: ignore[override]
+        class _Idx:
+            def as_retriever(self, similarity_top_k):
+                return {code_vs: code_ret, file_vs: file_ret}[vs]
+
+        return _Idx()
+
+    monkeypatch.setattr(
+        "rag_service.retriever.VectorStoreIndex.from_vector_store", from_vs
+    )
+    monkeypatch.setattr(
+        "rag_service.retriever.rewrite_for_collections", lambda q, cfg=None: (q, q, q)
+    )
+    monkeypatch.setattr(
+        "rag_service.retriever.expand_queries", lambda q, cfg, n: ["alt"]
+    )
+
+    retriever = build_query_engine(cfg, qdrant=None, llama=llama, collection_prefix="test_")
+    results = retriever.retrieve("orig")
+    ids = [n.node.node_id for n in results]
+    assert ids == ["dup"]
