@@ -12,7 +12,8 @@ def test_load_config(tmp_path):
         '"version":1,'
         '"indexing":{},'
         '"ast":{},'
-        '"openai":{"embeddings":{"base_url":"","model":"m","api_key":"k"},'
+        '"openai":{"code_embeddings":{"base_url":"","model":"m","api_key":"k"},'
+        '"text_embeddings":{"base_url":"","model":"m","api_key":"k"},'
         '"generator":{"base_url":"","model":"m","api_key":"k"},'
         '"query_rewriter":{"base_url":"","model":"m","api_key":"k"}},'
         '"prompts":{"file_card_md":"a","dir_card_md":"b"},'
@@ -22,5 +23,6 @@ def test_load_config(tmp_path):
     )
     cfg = AppConfig.load(cfg_path)
     assert cfg.version == 1
-    assert cfg.openai.embeddings.model == "m"
+    assert cfg.openai.code_embeddings.model == "m"
+    assert cfg.openai.text_embeddings.model == "m"
     assert cfg.prompts.file_card_md == "a"

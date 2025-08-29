@@ -14,7 +14,8 @@ from .config import AppConfig, OpenAIClientConfig
 
 logger = logging.getLogger(__name__)
 
-EMBEDDINGS_CLIENT: Client | None = None
+CODE_EMBEDDINGS_CLIENT: Client | None = None
+TEXT_EMBEDDINGS_CLIENT: Client | None = None
 GENERATOR_CLIENT: Client | None = None
 
 
@@ -56,12 +57,13 @@ class NormalizedEmbedding(OpenAIEmbedding):
 
 
 def init_llamaindex_clients(cfg: AppConfig) -> None:
-    """Initialize LlamaIndex global settings with OpenAI‑like clients.
+    """Initialize LlamaIndex global settings with OpenAI-like clients.
 
-    The created HTTP clients are stored globally for graceful shutdown.
+    Separate embedding models are created for code and text processing. The
+    created HTTP clients are stored globally for graceful shutdown.
     """
 
-    global EMBEDDINGS_CLIENT, GENERATOR_CLIENT
+    global CODE_EMBEDDINGS_CLIENT, TEXT_EMBEDDINGS_CLIENT, GENERATOR_CLIENT
 
     def get_key(c: OpenAIClientConfig) -> str:
         """Resolve API key, supporting ``env:VAR`` indirection."""
@@ -79,12 +81,20 @@ def init_llamaindex_clients(cfg: AppConfig) -> None:
             logger.warning("SSL verification disabled for OpenAI-like client %s", c.model)
         return http_client
 
-    EMBEDDINGS_CLIENT = get_http_client(cfg.openai.embeddings)
-    Settings.embed_model = NormalizedEmbedding(
-        model=cfg.openai.embeddings.model,
-        api_base=cfg.openai.embeddings.base_url,
-        api_key=get_key(cfg.openai.embeddings),
-        http_client=EMBEDDINGS_CLIENT,
+    CODE_EMBEDDINGS_CLIENT = get_http_client(cfg.openai.code_embeddings)
+    Settings.code_embed_model = NormalizedEmbedding(
+        model=cfg.openai.code_embeddings.model,
+        api_base=cfg.openai.code_embeddings.base_url,
+        api_key=get_key(cfg.openai.code_embeddings),
+        http_client=CODE_EMBEDDINGS_CLIENT,
+    )
+
+    TEXT_EMBEDDINGS_CLIENT = get_http_client(cfg.openai.text_embeddings)
+    Settings.text_embed_model = NormalizedEmbedding(
+        model=cfg.openai.text_embeddings.model,
+        api_base=cfg.openai.text_embeddings.base_url,
+        api_key=get_key(cfg.openai.text_embeddings),
+        http_client=TEXT_EMBEDDINGS_CLIENT,
     )
 
     GENERATOR_CLIENT = get_http_client(cfg.openai.generator)
@@ -108,9 +118,14 @@ def close_llamaindex_clients() -> None:
     be called manually to release HTTP resources.
     """
 
-    global EMBEDDINGS_CLIENT, GENERATOR_CLIENT
-    for client in (EMBEDDINGS_CLIENT, GENERATOR_CLIENT):
+    global CODE_EMBEDDINGS_CLIENT, TEXT_EMBEDDINGS_CLIENT, GENERATOR_CLIENT
+    for client in (
+        CODE_EMBEDDINGS_CLIENT,
+        TEXT_EMBEDDINGS_CLIENT,
+        GENERATOR_CLIENT,
+    ):
         if client is not None:
             client.close()
-    EMBEDDINGS_CLIENT = None
+    CODE_EMBEDDINGS_CLIENT = None
+    TEXT_EMBEDDINGS_CLIENT = None
     GENERATOR_CLIENT = None

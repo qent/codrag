@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from llama_index.core import Document, StorageContext, VectorStoreIndex
+from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import CodeSplitter
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
@@ -134,7 +134,11 @@ class PathIndexer:
     def _upsert_code_nodes(self, nodes) -> int:
         """Write code nodes to the vector store."""
 
-        VectorStoreIndex(nodes, storage_context=StorageContext.from_defaults(vector_store=self.code_vs))
+        VectorStoreIndex(
+            nodes,
+            storage_context=StorageContext.from_defaults(vector_store=self.code_vs),
+            embed_model=Settings.code_embed_model,
+        )
         return len(nodes)
 
     def _generate_file_card(self, file_path: Path, file_text: str) -> str:
@@ -157,7 +161,11 @@ class PathIndexer:
                 "lang": self.cfg.ast.languages.get(file_path.suffix, ""),
             },
         )
-        VectorStoreIndex([doc], storage_context=StorageContext.from_defaults(vector_store=self.file_vs))
+        VectorStoreIndex(
+            [doc],
+            storage_context=StorageContext.from_defaults(vector_store=self.file_vs),
+            embed_model=Settings.text_embed_model,
+        )
 
     def _process_file(
         self, file_path: Path, stats: IndexStats, text: str, file_hash: str
@@ -193,7 +201,11 @@ class PathIndexer:
                 "parent_dir": str(dir_path.parent),
             },
         )
-        VectorStoreIndex([doc], storage_context=StorageContext.from_defaults(vector_store=self.dir_vs))
+        VectorStoreIndex(
+            [doc],
+            storage_context=StorageContext.from_defaults(vector_store=self.dir_vs),
+            embed_model=Settings.text_embed_model,
+        )
 
     def _generate_dir_cards(
         self, root: Path, dir_items: Dict[Path, List[str]], stats: IndexStats
