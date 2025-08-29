@@ -22,6 +22,25 @@ pytest
 uvicorn rag_service.main:app --reload
 ```
 
+## Reranking
+
+To re-order retrieval results with a cross-encoder model, enable the reranker in the
+configuration:
+
+```json
+{
+  "llamaindex": {
+    "use": true,
+    "retrieval": {
+      "use_reranker": true
+    }
+  }
+}
+```
+
+The reranker uses the ``cross-encoder/ms-marco-MiniLM-L-6-v2`` model from the
+``sentence-transformers`` package.
+
 ## API Usage
 
 ### Index a repository
