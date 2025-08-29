@@ -4,6 +4,7 @@ import pytest
 
 from qdrant_client import QdrantClient
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from llama_index.core import Settings
 from llama_index.core.embeddings import BaseEmbedding
@@ -11,7 +12,8 @@ from llama_index.core.llms import MockLLM
 from pydantic import PrivateAttr
 
 from rag_service.config import AppConfig
-from rag_service.indexer import index_path
+from rag_service.indexer import PathIndexer, index_path
+from llama_index.core.schema import TextNode
 from rag_service.llama_facade import LlamaIndexFacade
 from rag_service.retriever import build_query_engine
 from rag_service.collection_utils import collection_prefix_from_path
@@ -297,3 +299,36 @@ def test_skip_cached_files(tmp_path):
     assert second.files_skipped_cache == 1
     assert second.files_processed == 0
     assert second.code_nodes_upserted == 0
+
+
+def test_code_nodes_have_neighbor_metadata(tmp_path):
+    """Ensure generated code chunks include neighbor metadata."""
+
+    src = tmp_path / "src"
+    src.mkdir()
+    file_path = src / "Test.kt"
+
+    cfg = AppConfig.load(Path("config.json"))
+    cfg.ast.chunk_lines = 3
+    cfg.ast.chunk_overlap = 1
+    qdrant = QdrantClient(location=":memory:")
+    llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
+    indexer = PathIndexer(cfg, qdrant, llama, "test")
+
+    with patch("rag_service.indexer.CodeSplitter") as splitter_cls:
+        splitter = splitter_cls.return_value
+        splitter.get_nodes_from_documents.return_value = [
+            TextNode(text="a"),
+            TextNode(text="b"),
+            TextNode(text="c"),
+        ]
+        nodes = indexer._create_nodes("dummy", file_path, "hash")
+
+    for i, node in enumerate(nodes):
+        expected_prev = nodes[i - 1].node_id if i > 0 else None
+        expected_next = nodes[i + 1].node_id if i < len(nodes) - 1 else None
+        assert node.metadata["prev_id"] == expected_prev
+        assert node.metadata["next_id"] == expected_next
+        assert node.metadata["file_path"] == str(file_path)
+        assert node.metadata["lang"] == "kotlin"
+        assert node.metadata["symbols_in_chunk"] == len(node.get_content())
