@@ -45,10 +45,13 @@ The reranker uses the ``cross-encoder/ms-marco-MiniLM-L-6-v2`` model from the
 
 ### Index a repository
 
+Include an optional ``repo_prompt`` to describe the project. This text is used when generating
+summaries for files and directories.
+
 ```bash
 curl -X POST http://localhost:8000/v1/index \
     -H "Content-Type: application/json" \
-    -d '{"root_path": ".", "clean": false}'
+    -d '{"root_path": ".", "clean": false, "repo_prompt": "Project context"}'
 ```
 
 ### Query indexed data

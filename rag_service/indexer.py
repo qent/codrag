@@ -37,11 +37,15 @@ class PathIndexer:
         qdrant: QdrantClient,
         llama: LlamaIndexFacade,
         collection_prefix: str,
+        repo_prompt: str = "",
     ) -> None:
+        """Initialize the indexer with configuration, clients, and a repository prompt."""
+
         self.cfg = cfg
         self.qdrant = qdrant
         self.llama = llama
         self.collection_prefix = collection_prefix
+        self.repo_prompt = repo_prompt
         self.code_vs = llama.code_vs(collection_prefix)
         self.file_vs = llama.file_vs(collection_prefix)
         self.dir_vs = (
@@ -145,6 +149,8 @@ class PathIndexer:
         """Generate a textual description for the file."""
 
         prompt = Path(self.cfg.prompts.file_card_md).read_text()
+        if self.repo_prompt:
+            prompt += f"\nRepository description:\n{self.repo_prompt}\n"
         prompt += f"\nFilename: {file_path.name}\n```{file_text}```\n"
         return self.llama.llm().complete(prompt).text
 
@@ -184,6 +190,8 @@ class PathIndexer:
         """Generate a textual description for a directory."""
 
         prompt = Path(self.cfg.prompts.dir_card_md).read_text()
+        if self.repo_prompt:
+            prompt += f"\nRepository description:\n{self.repo_prompt}\n"
         prompt += f"\nDirectory: {dir_path.name}\n"
         prompt += "\n".join(items) + "\n"
         return self.llama.llm().complete(prompt).text
@@ -234,6 +242,7 @@ def index_path(
     cfg: AppConfig,
     qdrant: QdrantClient,
     llama: LlamaIndexFacade | None = None,
+    repo_prompt: str = "",
 ) -> IndexStats:
     """Index a path and return statistics."""
 
@@ -241,4 +250,5 @@ def index_path(
 
     llama = llama or LlamaIndexFacade(cfg, qdrant)
     prefix = collection_prefix_from_path(root)
-    return PathIndexer(cfg, qdrant, llama, prefix).index_path(root)
+    indexer = PathIndexer(cfg, qdrant, llama, prefix, repo_prompt)
+    return indexer.index_path(root)
