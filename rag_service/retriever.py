@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Sequence
 
-from llama_index.core import VectorStoreIndex
+from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.schema import NodeWithScore
 from qdrant_client import QdrantClient
 
@@ -72,14 +72,20 @@ def build_query_engine(
         llama.dir_vs(collection_prefix) if cfg.features.process_directories else None
     )
 
-    code_ret = VectorStoreIndex.from_vector_store(code_vs).as_retriever(
+    code_ret = VectorStoreIndex.from_vector_store(
+        code_vs, embed_model=Settings.embed_model
+    ).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.code_nodes_top_k
     )
-    file_ret = VectorStoreIndex.from_vector_store(file_vs).as_retriever(
+    file_ret = VectorStoreIndex.from_vector_store(
+        file_vs, embed_model=Settings.embed_model
+    ).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.file_cards_top_k
     )
     if cfg.features.process_directories and dir_vs is not None:
-        dir_ret = VectorStoreIndex.from_vector_store(dir_vs).as_retriever(
+        dir_ret = VectorStoreIndex.from_vector_store(
+            dir_vs, embed_model=Settings.embed_model
+        ).as_retriever(
             similarity_top_k=cfg.llamaindex.retrieval.dir_cards_top_k
         )
     else:
