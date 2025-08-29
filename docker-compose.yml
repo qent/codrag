@@ -12,6 +12,7 @@ services:
       - CONFIG_PATH=/app/config.json
       - OPENAI_API_KEY_EMB=${OPENAI_API_KEY_EMB}
       - OPENAI_API_KEY_GEN=${OPENAI_API_KEY_GEN}
+      - LLM_LOGGING=${LLM_LOGGING}
     volumes:
       - ./config.json:/app/config.json:ro
       - ./prompts:/app/prompts:ro

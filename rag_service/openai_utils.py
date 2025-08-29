@@ -7,6 +7,7 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.core import Settings
 from llama_index.core.base.embeddings.base import Embedding
+from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 import numpy as np
 
 from .config import AppConfig, OpenAIClientConfig
@@ -94,6 +95,10 @@ def init_llamaindex_clients(cfg: AppConfig) -> None:
         http_client=GENERATOR_CLIENT,
         is_chat_model=True,
     )
+
+    if os.getenv("LLM_LOGGING"):
+        Settings.callback_manager = CallbackManager([LlamaDebugHandler()])
+        logging.getLogger("llama_index").setLevel(logging.DEBUG)
 
 
 def close_llamaindex_clients() -> None:

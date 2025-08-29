@@ -11,6 +11,42 @@ from .llama_facade import LlamaIndexFacade
 from .query_rewriter import expand_queries, rewrite_for_collections
 
 
+class CrossEncoderReranker:
+    """Rescore nodes for a query using a cross-encoder model."""
+
+    def __init__(self, model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2") -> None:
+        """Create a reranker backed by ``model``.
+
+        The sentence-transformers package is imported lazily. If it is
+        unavailable, reranking will be skipped and a warning logged.
+        """
+
+        try:  # pragma: no cover - import error pathway
+            from sentence_transformers import CrossEncoder
+        except Exception:  # pragma: no cover - best effort warning
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "sentence-transformers not installed, reranking disabled"
+            )
+            self._encoder = None
+        else:
+            self._encoder = CrossEncoder(model)
+
+    def rerank(self, query: str, nodes: Sequence[NodeWithScore]) -> List[NodeWithScore]:
+        """Return ``nodes`` sorted by cross-encoder relevance to ``query``."""
+
+        if not nodes:
+            return []
+        if self._encoder is None:
+            return list(nodes)
+        pairs = [(query, n.node.get_content()) for n in nodes]
+        scores = self._encoder.predict(pairs)
+        for node, score in zip(nodes, scores):
+            node.score = float(score)
+        return sorted(nodes, key=lambda n: n.score, reverse=True)
+
+
 def _relative_rescore(nodes: Sequence[NodeWithScore], weight: float) -> List[NodeWithScore]:
     """Rescore nodes relative to the top score and apply ``weight``."""
 
@@ -97,6 +133,8 @@ def build_query_engine(
     dir_weight = getattr(cfg.llamaindex.retrieval, "dir_weight", 1.0)
     rrf_k = getattr(cfg.llamaindex.retrieval, "rrf_k", 60)
     max_expansions = getattr(cfg.llamaindex.retrieval, "max_expansions", 0)
+    use_reranker = getattr(cfg.llamaindex.retrieval, "use_reranker", False)
+    reranker = CrossEncoderReranker() if use_reranker else None
 
     class SimpleRetriever:
         def retrieve(self, query: str):
@@ -129,7 +167,7 @@ def build_query_engine(
                 _extend_unique(file_ret.retrieve(file_q), file_nodes)
                 if cfg.features.process_directories and dir_ret is not None:
                     _extend_unique(dir_ret.retrieve(dir_q), dir_nodes)
-            return fuse_results(
+            fused = fuse_results(
                 code_nodes,
                 file_nodes,
                 dir_nodes if cfg.features.process_directories else None,
@@ -139,5 +177,8 @@ def build_query_engine(
                 dir_weight,
                 rrf_k,
             )
+            if reranker is not None:
+                fused = reranker.rerank(query, fused)
+            return fused
 
     return SimpleRetriever()
