@@ -13,6 +13,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from .config import OpenAIClientConfig
+from .langchain_logging import LangChainLogHandler
 
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "query_rewriter.md"
@@ -51,12 +52,14 @@ def _build_llm(cfg: OpenAIClientConfig | None) -> BaseChatModel | None:
     if not api_key:
         return None
     http_client = Client(verify=cfg.verify_ssl, timeout=cfg.timeout_sec)
+    callbacks = [LangChainLogHandler()] if os.getenv("LLM_LOGGING") else None
     return ChatOpenAI(
         model=cfg.model,
         base_url=cfg.base_url,
         api_key=api_key,
         max_retries=cfg.retries,
         http_client=http_client,
+        callbacks=callbacks,
     )
 
 
