@@ -53,7 +53,7 @@ def _with_file_path_prefix(metadata: dict) -> dict:
 def _build_query_engine(prefix: str) -> None:
     """(Re)build the query engine for ``prefix`` using current config."""
 
-    global QE, QE_CONFIG_ID
+    global QE_CONFIG_ID
     assert CONFIG and QDRANT and LLAMA
     QE[prefix] = build_query_engine(CONFIG, QDRANT, LLAMA, prefix)
     QE_CONFIG_ID = id(CONFIG)
@@ -62,7 +62,7 @@ def _build_query_engine(prefix: str) -> None:
 def _load_config(config_path: Path) -> None:
     """Load configuration and initialize shared clients."""
 
-    global CONFIG, QDRANT, LLAMA, QE, QE_CONFIG_ID
+    global CONFIG, QDRANT, LLAMA, QE_CONFIG_ID
     CONFIG = AppConfig.load(config_path)
     QDRANT = QdrantClient(url=CONFIG.qdrant.url)
     LLAMA = LlamaIndexFacade(CONFIG, QDRANT)
@@ -108,7 +108,6 @@ def query_endpoint(req: QueryRequest):
 
     assert CONFIG and QDRANT and LLAMA
     prefix = collection_prefix_from_path(req.root_path)
-    global QE
     if QE_CONFIG_ID != id(CONFIG) or prefix not in QE:
         _build_query_engine(prefix)
     result = QE[prefix].retrieve(req.q)
