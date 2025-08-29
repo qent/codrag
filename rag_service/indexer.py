@@ -133,8 +133,21 @@ class PathIndexer:
             max_chars=self.cfg.ast.max_chars,
         )
         nodes = splitter.get_nodes_from_documents([doc])
-        for n in nodes:
-            n.metadata.update({"file_hash": file_hash, "dir_path": str(file_path.parent), "lang": lang})
+        for i, node in enumerate(nodes):
+            prev_id = nodes[i - 1].node_id if i > 0 else None
+            next_id = nodes[i + 1].node_id if i < len(nodes) - 1 else None
+            content = node.get_content() or ""
+            node.metadata.update(
+                {
+                    "file_path": str(file_path),
+                    "file_hash": file_hash,
+                    "dir_path": str(file_path.parent),
+                    "lang": lang,
+                    "prev_id": prev_id,
+                    "next_id": next_id,
+                    "symbols_in_chunk": len(content),
+                }
+            )
         return nodes
 
     def _upsert_code_nodes(self, nodes) -> int:
