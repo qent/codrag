@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import List, Tuple
 
-from httpx import Client
-from langchain_openai import ChatOpenAI
 from langchain_core.language_models import BaseChatModel
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
 from .config import OpenAIClientConfig
-from .langchain_logging import LangChainLogHandler
+from .openai_utils import build_langchain_llm
 
 
 _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "query_rewriter.md"
@@ -42,25 +39,9 @@ class _Expansions(BaseModel):
 
 
 def _build_llm(cfg: OpenAIClientConfig | None) -> BaseChatModel | None:
-    """Create an LLM from ``cfg`` or return ``None`` if misconfigured."""
+    """Thin wrapper delegating to shared LangChain LLM factory."""
 
-    if cfg is None:
-        return None
-    api_key = cfg.api_key
-    if api_key.startswith("env:"):
-        api_key = os.environ.get(api_key.split(":", 1)[1], "")
-    if not api_key:
-        return None
-    http_client = Client(verify=cfg.verify_ssl, timeout=cfg.timeout_sec)
-    callbacks = [LangChainLogHandler()] if os.getenv("LLM_LOGGING") else None
-    return ChatOpenAI(
-        model=cfg.model,
-        base_url=cfg.base_url,
-        api_key=api_key,
-        max_retries=cfg.retries,
-        http_client=http_client,
-        callbacks=callbacks,
-    )
+    return build_langchain_llm(cfg)
 
 
 def rewrite_for_collections(
@@ -121,4 +102,3 @@ def expand_queries(
     chain = _EXPAND_PROMPT_TMPL | llm.with_structured_output(_Expansions)
     data = chain.invoke({"query": query, "n": max_expansions})
     return data.queries[:max_expansions]
-

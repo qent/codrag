@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from .config import AppConfig
 from .llama_facade import LlamaIndexFacade
+from .openai_utils import build_langchain_llm
 
 
 @dataclass
@@ -165,7 +166,8 @@ class PathIndexer:
         prompt = Path(self.cfg.prompts.file_card_md).read_text()
         tmpl = ChatPromptTemplate.from_template(prompt)
         lang = self.cfg.ast.languages.get(file_path.suffix, "")
-        chain = tmpl | self.llama.llm().with_structured_output(self._FileCard)
+        llm = build_langchain_llm(self.cfg.openai.generator)
+        chain = tmpl | llm.with_structured_output(self._FileCard)
         data = chain.invoke(
             {
                 "file_path": str(file_path),
@@ -175,6 +177,8 @@ class PathIndexer:
             }
         )
         return data
+
+    
 
     def _upsert_file_card(self, file_path: Path, file_hash: str, card: _FileCard) -> None:
         """Write ``card`` for ``file_path`` to the vector store."""

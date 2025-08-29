@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import os
 from httpx import Client
+from langchain_core.language_models import BaseChatModel
+from langchain_openai import ChatOpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.core import Settings
@@ -11,6 +13,7 @@ from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
 import numpy as np
 
 from .config import AppConfig, OpenAIClientConfig
+from .langchain_logging import LangChainLogHandler
 
 logger = logging.getLogger(__name__)
 
@@ -129,3 +132,29 @@ def close_llamaindex_clients() -> None:
     CODE_EMBEDDINGS_CLIENT = None
     TEXT_EMBEDDINGS_CLIENT = None
     GENERATOR_CLIENT = None
+
+
+def build_langchain_llm(cfg: OpenAIClientConfig | None) -> BaseChatModel | None:
+    """Create a LangChain LLM from ``cfg`` or return ``None`` if misconfigured.
+
+    Resolves ``env:VAR`` API keys, respects SSL verification and timeout, and
+    enables optional logging via ``LLM_LOGGING`` environment variable.
+    """
+
+    if cfg is None:
+        return None
+    api_key = cfg.api_key
+    if api_key.startswith("env:"):
+        api_key = os.environ.get(api_key.split(":", 1)[1], "")
+    if not api_key:
+        return None
+    http_client = Client(verify=cfg.verify_ssl, timeout=cfg.timeout_sec)
+    callbacks = [LangChainLogHandler()] if os.getenv("LLM_LOGGING") else None
+    return ChatOpenAI(
+        model=cfg.model,
+        base_url=cfg.base_url,
+        api_key=api_key,
+        max_retries=cfg.retries,
+        http_client=http_client,
+        callbacks=callbacks,
+    )

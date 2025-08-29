@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+import pytest
 
 from qdrant_client import QdrantClient
 from types import SimpleNamespace
@@ -59,6 +60,38 @@ class DummyLLM(MockLLM):
 Settings.llm = DummyLLM()
 
 
+class LCStub:
+    """LangChain-like LLM stub capturing templated messages."""
+
+    def __init__(self) -> None:
+        self.messages = None
+
+    def with_structured_output(self, model):  # pragma: no cover - simple stub
+        def _call(chat_prompt_value):
+            # ChatPromptTemplate pipes a ChatPromptValue with .messages
+            self.messages = getattr(chat_prompt_value, "messages", None)
+            return SimpleNamespace(
+                summary="s", key_points=[], embedding_text="e", keywords=[]
+            )
+
+        return _call
+
+
+@pytest.fixture(autouse=True)
+def patch_langchain_llm():
+    """Patch indexer to use a local LangChain stub instead of real LLM."""
+
+    import rag_service.indexer as indexer_mod
+
+    stub = LCStub()
+    original = indexer_mod.build_langchain_llm
+    indexer_mod.build_langchain_llm = lambda _cfg: stub
+    try:
+        yield stub
+    finally:
+        indexer_mod.build_langchain_llm = original
+
+
 def setup_function(_):
     """Reset LLM before each test."""
 
@@ -83,6 +116,8 @@ def test_index_and_query(tmp_path):
     assert stats.dir_cards_upserted > 0
 
     prefix = collection_prefix_from_path(src)
+    # Avoid network download of reranker model
+    cfg.llamaindex.retrieval.use_reranker = False
     qe = build_query_engine(cfg, qdrant, llama, prefix)
     res = qe.retrieve("Foo")
     assert any(n.node.metadata.get("type") == "dir_card" for n in res)
@@ -103,6 +138,7 @@ def test_directories_skipped_by_default(tmp_path):
     assert stats.dir_cards_upserted == 0
 
     prefix = collection_prefix_from_path(src)
+    cfg.llamaindex.retrieval.use_reranker = False
     qe = build_query_engine(cfg, qdrant, llama, prefix)
     res = qe.retrieve("Foo")
     assert all(n.node.metadata.get("type") != "dir_card" for n in res)
@@ -148,7 +184,7 @@ class CaptureLLM(MockLLM):
         return list(self._inputs)
 
 
-def test_file_text_passed_to_llm(tmp_path):
+def test_file_text_passed_to_llm(tmp_path, patch_langchain_llm: LCStub):
     """Ensure file text, not path, is sent to the LLM."""
 
     src = tmp_path / "src"
@@ -160,18 +196,15 @@ def test_file_text_passed_to_llm(tmp_path):
     qdrant = QdrantClient(location=":memory:")
     llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
 
-    original_llm = Settings.llm
-    capture_llm = CaptureLLM()
-    Settings.llm = capture_llm
-    try:
-        index_path(src, cfg, qdrant, llama)
-    finally:
-        Settings.llm = original_llm
-    content = capture_llm.last_input.messages[0].content
+    # Run indexing and assert the templated prompt includes file content
+    index_path(src, cfg, qdrant, llama)
+    messages = patch_langchain_llm.messages
+    assert messages, "Expected ChatPrompt messages to be captured"
+    content = messages[0].content
     assert code in content
 
 
-def test_repo_prompt_included(tmp_path):
+def test_repo_prompt_included(tmp_path, patch_langchain_llm: LCStub):
     """Ensure repository prompt is appended to file and directory prompts."""
 
     src = tmp_path / "src"
@@ -186,6 +219,7 @@ def test_repo_prompt_included(tmp_path):
     llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
 
     repo_desc = "Custom repository description"
+    # Capture directory prompts through Settings.llm
     original_llm = Settings.llm
     capture_llm = CaptureLLM()
     Settings.llm = capture_llm
@@ -194,11 +228,14 @@ def test_repo_prompt_included(tmp_path):
     finally:
         Settings.llm = original_llm
 
+    # Directory prompts contain repo description
     assert capture_llm.prompts
     assert all(repo_desc in p for p in capture_llm.prompts)
-    contents = [i.messages[0].content for i in capture_llm.inputs]
-    assert contents
-    assert all(repo_desc in c for c in contents)
+
+    # File card prompt (LangChain) also contains repo description
+    messages = patch_langchain_llm.messages
+    assert messages, "Expected ChatPrompt messages to be captured"
+    assert repo_desc in messages[0].content
 
 
 def test_file_card_metadata_stored(tmp_path):
