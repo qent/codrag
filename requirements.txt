@@ -15,3 +15,4 @@ tree_sitter==0.25.1
 tree_sitter_language_pack==0.9.0
 langchain==0.3.27
 langchain-openai==0.3.32
+sentence-transformers==3.0.1
