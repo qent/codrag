@@ -28,6 +28,7 @@ QE_CONFIG_ID: int | None = None
 class IndexRequest(BaseModel):
     root_path: str
     clean: bool = False
+    repo_prompt: str | None = None
 
 
 class QueryRequest(BaseModel):
@@ -97,7 +98,13 @@ def index_endpoint(req: IndexRequest):
 
     assert CONFIG and QDRANT and LLAMA
     start = time.time()
-    stats = index_path(Path(req.root_path), CONFIG, QDRANT, LLAMA)
+    stats = index_path(
+        Path(req.root_path),
+        CONFIG,
+        QDRANT,
+        LLAMA,
+        repo_prompt=req.repo_prompt or "",
+    )
     took = int((time.time() - start) * 1000)
     return {"status": "ok", "indexed": stats.__dict__, "took_ms": took}
 

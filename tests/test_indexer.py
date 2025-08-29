@@ -87,21 +87,27 @@ def test_directories_skipped_by_default(tmp_path):
 
 
 class CaptureLLM(MockLLM):
-    """LLM that stores the last prompt."""
+    """LLM that stores all prompts passed to it."""
 
-    _last_prompt: str = PrivateAttr("")
+    _prompts: list[str] = PrivateAttr(default_factory=list)
 
     def complete(self, prompt: str, **kwargs: Any) -> Any:
         """Record the prompt and return a mock completion."""
 
-        self._last_prompt = prompt
+        self._prompts.append(prompt)
         return super().complete(prompt, **kwargs)
 
     @property
     def last_prompt(self) -> str:
         """Return the last recorded prompt."""
 
-        return self._last_prompt
+        return self._prompts[-1] if self._prompts else ""
+
+    @property
+    def prompts(self) -> list[str]:
+        """Return a copy of all recorded prompts."""
+
+        return list(self._prompts)
 
 
 def test_file_text_passed_to_llm(tmp_path):
@@ -125,6 +131,33 @@ def test_file_text_passed_to_llm(tmp_path):
         Settings.llm = original_llm
 
     assert code in capture_llm.last_prompt
+
+
+def test_repo_prompt_included(tmp_path):
+    """Ensure repository prompt is appended to file and directory prompts."""
+
+    src = tmp_path / "src"
+    pkg = src / "pkg"
+    pkg.mkdir(parents=True)
+    code = "class Foo { fun bar() {} }"
+    (pkg / "Test.kt").write_text(code)
+
+    cfg = AppConfig.load(Path("config.json"))
+    cfg.features.process_directories = True
+    qdrant = QdrantClient(location=":memory:")
+    llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
+
+    repo_desc = "Custom repository description"
+    original_llm = Settings.llm
+    capture_llm = CaptureLLM()
+    Settings.llm = capture_llm
+    try:
+        index_path(src, cfg, qdrant, llama, repo_prompt=repo_desc)
+    finally:
+        Settings.llm = original_llm
+
+    assert capture_llm.prompts
+    assert all(repo_desc in p for p in capture_llm.prompts)
 
 
 def test_scan_respects_blacklist(tmp_path):
