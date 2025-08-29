@@ -11,6 +11,8 @@ from llama_index.core import Document, Settings, StorageContext, VectorStoreInde
 from llama_index.core.node_parser import CodeSplitter
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
+from langchain_core.prompts import ChatPromptTemplate
+from pydantic import BaseModel, Field
 
 from .config import AppConfig
 from .llama_facade import LlamaIndexFacade
@@ -145,26 +147,49 @@ class PathIndexer:
         )
         return len(nodes)
 
-    def _generate_file_card(self, file_path: Path, file_text: str) -> str:
-        """Generate a textual description for the file."""
+    class _FileCard(BaseModel):
+        """Structured data describing a source file."""
+
+        summary: str = Field(description="Concise multi-sentence overview of the file")
+        key_points: List[str] = Field(
+            default_factory=list, description="High-signal bullet points"
+        )
+        embedding_text: str = Field(description="Dense paragraph for embeddings")
+        keywords: List[str] = Field(
+            default_factory=list, description="Searchable keyword tags"
+        )
+
+    def _generate_file_card(self, file_path: Path, file_text: str) -> _FileCard:
+        """Generate a structured description for ``file_path``."""
 
         prompt = Path(self.cfg.prompts.file_card_md).read_text()
-        if self.repo_prompt:
-            prompt += f"\nRepository description:\n{self.repo_prompt}\n"
-        prompt += f"\nFilename: {file_path.name}\n```{file_text}```\n"
-        return self.llama.llm().complete(prompt).text
+        tmpl = ChatPromptTemplate.from_template(prompt)
+        lang = self.cfg.ast.languages.get(file_path.suffix, "")
+        chain = tmpl | self.llama.llm().with_structured_output(self._FileCard)
+        data = chain.invoke(
+            {
+                "file_path": str(file_path),
+                "file_content": file_text,
+                "language_hint": lang,
+                "repo_context": self.repo_prompt,
+            }
+        )
+        return data
 
-    def _upsert_file_card(self, file_path: Path, file_hash: str, card_text: str) -> None:
-        """Write the file card to the vector store."""
+    def _upsert_file_card(self, file_path: Path, file_hash: str, card: _FileCard) -> None:
+        """Write ``card`` for ``file_path`` to the vector store."""
 
         doc = Document(
-            text=card_text,
+            text=card.embedding_text,
             metadata={
                 "type": "file_card",
                 "file_path": str(file_path),
                 "file_hash": file_hash,
                 "dir_path": str(file_path.parent),
                 "lang": self.cfg.ast.languages.get(file_path.suffix, ""),
+                "summary": card.summary,
+                "key_points": card.key_points,
+                "keywords": card.keywords,
             },
         )
         VectorStoreIndex(
@@ -176,15 +201,15 @@ class PathIndexer:
     def _process_file(
         self, file_path: Path, stats: IndexStats, text: str, file_hash: str
     ) -> str:
-        """Index a single file, update ``stats`` and return card text."""
+        """Index a single file, update ``stats`` and return summary text."""
 
         stats.files_processed += 1
         nodes = self._create_nodes(text, file_path, file_hash)
         stats.code_nodes_upserted += self._upsert_code_nodes(nodes)
-        card_text = self._generate_file_card(file_path, text)
-        self._upsert_file_card(file_path, file_hash, card_text)
+        card = self._generate_file_card(file_path, text)
+        self._upsert_file_card(file_path, file_hash, card)
         stats.file_cards_upserted += 1
-        return card_text
+        return card.summary
 
     def _generate_dir_card(self, dir_path: Path, items: List[str]) -> str:
         """Generate a textual description for a directory."""

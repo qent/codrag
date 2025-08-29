@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Any
 
 from qdrant_client import QdrantClient
+from types import SimpleNamespace
+
 from llama_index.core import Settings
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.llms import MockLLM
@@ -40,7 +42,27 @@ class DummyEmbedding(BaseEmbedding):
 
 Settings.code_embed_model = DummyEmbedding()
 Settings.text_embed_model = DummyEmbedding()
-Settings.llm = MockLLM()
+
+
+class DummyLLM(MockLLM):
+    """LLM stub returning structured output."""
+
+    def with_structured_output(self, model):  # pragma: no cover - simple stub
+        def _call(_):
+            return SimpleNamespace(
+                summary="s", key_points=[], embedding_text="e", keywords=[]
+            )
+
+        return _call
+
+
+Settings.llm = DummyLLM()
+
+
+def setup_function(_):
+    """Reset LLM before each test."""
+
+    Settings.llm = DummyLLM()
 
 
 def test_index_and_query(tmp_path):
@@ -87,9 +109,19 @@ def test_directories_skipped_by_default(tmp_path):
 
 
 class CaptureLLM(MockLLM):
-    """LLM that stores all prompts passed to it."""
+    """LLM capturing structured inputs and prompts."""
 
+    _inputs: list[dict] = PrivateAttr(default_factory=list)
     _prompts: list[str] = PrivateAttr(default_factory=list)
+
+    def with_structured_output(self, model):  # pragma: no cover - simple stub
+        def _call(data):
+            self._inputs.append(data)
+            return SimpleNamespace(
+                summary="s", key_points=[], embedding_text="e", keywords=[]
+            )
+
+        return _call
 
     def complete(self, prompt: str, **kwargs: Any) -> Any:
         """Record the prompt and return a mock completion."""
@@ -98,16 +130,22 @@ class CaptureLLM(MockLLM):
         return super().complete(prompt, **kwargs)
 
     @property
-    def last_prompt(self) -> str:
-        """Return the last recorded prompt."""
+    def last_input(self) -> dict:
+        """Return the last captured structured input."""
 
-        return self._prompts[-1] if self._prompts else ""
+        return self._inputs[-1] if self._inputs else {}
 
     @property
     def prompts(self) -> list[str]:
-        """Return a copy of all recorded prompts."""
+        """Return a copy of recorded prompts."""
 
         return list(self._prompts)
+
+    @property
+    def inputs(self) -> list[dict]:
+        """Return a copy of structured inputs."""
+
+        return list(self._inputs)
 
 
 def test_file_text_passed_to_llm(tmp_path):
@@ -129,8 +167,8 @@ def test_file_text_passed_to_llm(tmp_path):
         index_path(src, cfg, qdrant, llama)
     finally:
         Settings.llm = original_llm
-
-    assert code in capture_llm.last_prompt
+    content = capture_llm.last_input.messages[0].content
+    assert code in content
 
 
 def test_repo_prompt_included(tmp_path):
@@ -158,6 +196,35 @@ def test_repo_prompt_included(tmp_path):
 
     assert capture_llm.prompts
     assert all(repo_desc in p for p in capture_llm.prompts)
+    contents = [i.messages[0].content for i in capture_llm.inputs]
+    assert contents
+    assert all(repo_desc in c for c in contents)
+
+
+def test_file_card_metadata_stored(tmp_path):
+    """File card should store embedding text and metadata."""
+
+    src = tmp_path / "src"
+    src.mkdir()
+    code = "class Foo { fun bar() {} }"
+    (src / "a.kt").write_text(code)
+
+    cfg = AppConfig.load(Path("config.json"))
+    qdrant = QdrantClient(location=":memory:")
+    llama = LlamaIndexFacade(cfg, qdrant, initialize=False)
+
+    index_path(src, cfg, qdrant, llama)
+
+    prefix = collection_prefix_from_path(src)
+    points, _ = qdrant.scroll(f"{prefix}file_cards", limit=1)
+    payload = points[0].payload
+    import json
+
+    node = json.loads(payload["_node_content"])
+    assert node["text"] == "e"
+    assert payload["summary"] == "s"
+    assert payload["key_points"] == []
+    assert payload["keywords"] == []
 
 
 def test_scan_respects_blacklist(tmp_path):
