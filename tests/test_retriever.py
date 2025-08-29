@@ -28,7 +28,8 @@ class DummyEmbedding(BaseEmbedding):
         return self._get_query_embedding(text)
 
 
-Settings.embed_model = DummyEmbedding()
+Settings.code_embed_model = DummyEmbedding()
+Settings.text_embed_model = DummyEmbedding()
 
 
 def test_relative_score_fusion_sorting() -> None:

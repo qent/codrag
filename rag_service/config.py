@@ -33,7 +33,8 @@ class OpenAIClientConfig(BaseModel):
 
 
 class OpenAIConfig(BaseModel):
-    embeddings: OpenAIClientConfig
+    code_embeddings: OpenAIClientConfig
+    text_embeddings: OpenAIClientConfig
     generator: OpenAIClientConfig
     query_rewriter: OpenAIClientConfig
 
@@ -111,7 +112,8 @@ class AppConfig(BaseModel):
         """Return dict representation without sensitive keys."""
 
         data = self.dict()
-        data["openai"]["embeddings"].pop("api_key", None)
+        data["openai"]["code_embeddings"].pop("api_key", None)
+        data["openai"]["text_embeddings"].pop("api_key", None)
         data["openai"]["generator"].pop("api_key", None)
         data["openai"]["query_rewriter"].pop("api_key", None)
         return data

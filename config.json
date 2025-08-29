@@ -22,7 +22,16 @@
     }
   },
   "openai": {
-    "embeddings": {
+    "code_embeddings": {
+      "base_url": "https://api.openai.com/v1",
+      "model": "text-embedding-3-small",
+      "api_key": "env:OPENAI_API_KEY_EMB",
+      "verify_ssl": true,
+      "timeout_sec": 60,
+      "retries": 3,
+      "rate_limit_rps": 5
+    },
+    "text_embeddings": {
       "base_url": "https://api.openai.com/v1",
       "model": "text-embedding-3-small",
       "api_key": "env:OPENAI_API_KEY_EMB",

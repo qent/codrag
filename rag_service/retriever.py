@@ -109,18 +109,18 @@ def build_query_engine(
     )
 
     code_ret = VectorStoreIndex.from_vector_store(
-        code_vs, embed_model=Settings.embed_model
+        code_vs, embed_model=Settings.code_embed_model
     ).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.code_nodes_top_k
     )
     file_ret = VectorStoreIndex.from_vector_store(
-        file_vs, embed_model=Settings.embed_model
+        file_vs, embed_model=Settings.text_embed_model
     ).as_retriever(
         similarity_top_k=cfg.llamaindex.retrieval.file_cards_top_k
     )
     if cfg.features.process_directories and dir_vs is not None:
         dir_ret = VectorStoreIndex.from_vector_store(
-            dir_vs, embed_model=Settings.embed_model
+            dir_vs, embed_model=Settings.text_embed_model
         ).as_retriever(
             similarity_top_k=cfg.llamaindex.retrieval.dir_cards_top_k
         )

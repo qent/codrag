@@ -29,7 +29,8 @@ def test_facade_vector_store_names(tmp_path):
 
     cfg = AppConfig.load(Path("config.json"))
     qdrant = QdrantClient(location=":memory:")
-    Settings.embed_model = DummyEmbedding()
+    Settings.code_embed_model = DummyEmbedding()
+    Settings.text_embed_model = DummyEmbedding()
     Settings.llm = MockLLM()
     facade = LlamaIndexFacade(cfg, qdrant, initialize=False)
     prefix = "demo_"
@@ -47,7 +48,8 @@ def test_facade_respects_distances(tmp_path):
         '"version":1,'
         '"indexing":{},'
         '"ast":{},'
-        '"openai":{"embeddings":{"base_url":"","model":"m","api_key":"k"},'
+        '"openai":{"code_embeddings":{"base_url":"","model":"m","api_key":"k"},'
+        '"text_embeddings":{"base_url":"","model":"m","api_key":"k"},'
         '"generator":{"base_url":"","model":"m","api_key":"k"},'
         '"query_rewriter":{"base_url":"","model":"m","api_key":"k"}},'
         '"prompts":{"file_card_md":"a","dir_card_md":"b"},'
@@ -57,7 +59,8 @@ def test_facade_respects_distances(tmp_path):
     )
     cfg = AppConfig.load(cfg_path)
     qdrant = QdrantClient(location=":memory:")
-    Settings.embed_model = DummyEmbedding()
+    Settings.code_embed_model = DummyEmbedding()
+    Settings.text_embed_model = DummyEmbedding()
     Settings.llm = MockLLM()
     facade = LlamaIndexFacade(cfg, qdrant, initialize=False)
     prefix = "demo_"

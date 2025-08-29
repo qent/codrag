@@ -38,7 +38,8 @@ class DummyEmbedding(BaseEmbedding):
         return self._get_query_embedding(text)
 
 
-Settings.embed_model = DummyEmbedding()
+Settings.code_embed_model = DummyEmbedding()
+Settings.text_embed_model = DummyEmbedding()
 Settings.llm = MockLLM()
 
 
