@@ -56,7 +56,8 @@
   },
   "qdrant": {
     "url": "http://localhost:6333",
-    "distance": "Cosine",
+    "code_distance": "Cosine",
+    "text_distance": "Cosine",
     "prefer_grpc": false
   },
   "llamaindex": {

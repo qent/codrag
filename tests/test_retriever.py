@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from typing import Sequence
 
+from llama_index.core import Settings
+from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.schema import NodeWithScore, TextNode
 
 from rag_service.retriever import build_query_engine, fuse_results
@@ -10,6 +12,23 @@ def _node(node_id: str, score: float) -> NodeWithScore:
     """Create a ``NodeWithScore`` for testing."""
 
     return NodeWithScore(node=TextNode(id_=node_id, text=""), score=score)
+
+
+class DummyEmbedding(BaseEmbedding):
+    def _get_text_embedding(self, text: str):
+        return [0.0]
+
+    async def _aget_text_embedding(self, text: str):
+        return self._get_text_embedding(text)
+
+    def _get_query_embedding(self, text: str):
+        return [0.0]
+
+    async def _aget_query_embedding(self, text: str):
+        return self._get_query_embedding(text)
+
+
+Settings.embed_model = DummyEmbedding()
 
 
 def test_relative_score_fusion_sorting() -> None:
@@ -83,7 +102,7 @@ def test_simple_retriever_uses_query_rewriter(monkeypatch) -> None:
         dir_vs=lambda prefix: dir_vs,
     )
 
-    def from_vs(vs):  # type: ignore[override]
+    def from_vs(vs, embed_model=None):  # type: ignore[override]
         class _Idx:
             def as_retriever(self, similarity_top_k):
                 return {code_vs: code_ret, file_vs: file_ret, dir_vs: dir_ret}[vs]
@@ -157,7 +176,7 @@ def test_retriever_skips_directories_when_flag_disabled(monkeypatch) -> None:
         dir_vs=lambda prefix: dir_vs,
     )
 
-    def from_vs(vs):  # type: ignore[override]
+    def from_vs(vs, embed_model=None):  # type: ignore[override]
         class _Idx:
             def as_retriever(self, similarity_top_k):
                 return {code_vs: code_ret, file_vs: file_ret, dir_vs: dir_ret}[vs]
@@ -225,7 +244,7 @@ def test_simple_retriever_filters_duplicate_nodes(monkeypatch) -> None:
         dir_vs=lambda prefix: None,
     )
 
-    def from_vs(vs):  # type: ignore[override]
+    def from_vs(vs, embed_model=None):  # type: ignore[override]
         class _Idx:
             def as_retriever(self, similarity_top_k):
                 return {code_vs: code_ret, file_vs: file_ret}[vs]
@@ -287,7 +306,7 @@ def test_simple_retriever_applies_reranker(monkeypatch) -> None:
     code_vs = object()
     llama = SimpleNamespace(code_vs=lambda prefix: code_vs, file_vs=lambda prefix: code_vs)
 
-    def from_vs(vs):  # type: ignore[override]
+    def from_vs(vs, embed_model=None):  # type: ignore[override]
         class _Idx:
             def as_retriever(self, similarity_top_k):
                 return code_ret
