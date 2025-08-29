@@ -178,8 +178,6 @@ class PathIndexer:
         )
         return data
 
-    
-
     def _upsert_file_card(self, file_path: Path, file_hash: str, card: _FileCard) -> None:
         """Write ``card`` for ``file_path`` to the vector store."""
 

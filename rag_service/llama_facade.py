@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from llama_index.core import Settings
+from llama_index.core.llms import LLM
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
@@ -32,7 +33,7 @@ class LlamaIndexFacade:
         )
         self._stores: dict[str, QdrantVectorStore] = {}
 
-    def llm(self) -> object:
+    def llm(self) -> LLM:
         """Return the configured language model."""
 
         return Settings.llm
