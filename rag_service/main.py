@@ -44,8 +44,10 @@ def _with_file_path_prefix(metadata: dict) -> dict:
     """Return a copy of ``metadata`` with configured file path prefix applied."""
 
     assert CONFIG
-    features = getattr(CONFIG, "features", None)
-    prefix = getattr(features, "file_path_prefix", "")
+    features = CONFIG.features
+    prefix = ""
+    if hasattr(features, "file_path_prefix") and features.file_path_prefix:
+        prefix = features.file_path_prefix
     file_path = metadata.get("file_path")
     if prefix and file_path:
         return {**metadata, "file_path": prefix + file_path}
