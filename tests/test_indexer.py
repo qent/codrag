@@ -71,7 +71,11 @@ class LCStub:
     def with_structured_output(self, model):  # pragma: no cover - simple stub
         def _call(chat_prompt_value):
             # ChatPromptTemplate pipes a ChatPromptValue with .messages
-            self.messages = getattr(chat_prompt_value, "messages", None)
+            self.messages = (
+                chat_prompt_value.messages
+                if hasattr(chat_prompt_value, "messages")
+                else None
+            )
             return SimpleNamespace(
                 summary="s", key_points=[], embedding_text="e", keywords=[]
             )
