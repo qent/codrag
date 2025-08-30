@@ -59,10 +59,12 @@ class RetrievalConfig(BaseModel):
     use_reranker: bool = False
     code_weight: float = 1.0
     file_weight: float = 1.0
+    dir_weight: float = 1.0
     rrf_k: int = 60
     max_expansions: int = 2
     use_hyde_for_code: bool = False
     hyde_docs: int = 1
+    retriever: str = "simple"
 
 
 class LlamaIndexConfig(BaseModel):

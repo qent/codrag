@@ -121,7 +121,7 @@ def boost_file_nodes_by_metadata(
 
     boosted: List[NodeWithScore] = []
     for n in nodes:
-        payload = getattr(n.node, "metadata", {}) or {}
+        payload = n.node.metadata or {} if hasattr(n.node, "metadata") else {}
         score = float(n.score or 0.0)
 
         # Language boost
