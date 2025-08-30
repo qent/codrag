@@ -8,7 +8,7 @@ from qdrant_client import QdrantClient
 
 from ..config import AppConfig
 from ..llama_facade import LlamaIndexFacade
-from .utils import CrossEncoderReranker, fuse_results
+from .utils import fuse_results
 
 
 class SimpleRetriever:
@@ -75,7 +75,12 @@ class SimpleRetriever:
         use_reranker = (
             retrieval.use_reranker if hasattr(retrieval, "use_reranker") else False
         )
-        self._reranker = CrossEncoderReranker() if use_reranker else None
+        if use_reranker:
+            from .. import retriever as _r  # late import for monkeypatching
+
+            self._reranker = _r.CrossEncoderReranker()
+        else:
+            self._reranker = None
 
     def set_runtime_options(self, hyde_system_prompt: str = "") -> None:
         """Set per-request options such as HyDE system prompt."""
