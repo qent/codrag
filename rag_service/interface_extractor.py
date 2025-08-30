@@ -6,7 +6,6 @@ from typing import List
 from tree_sitter import Node
 from tree_sitter_language_pack import get_parser
 
-
 PUBLIC_NODE_TYPES = {
     "function_definition",
     "function_declaration",

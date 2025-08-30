@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from qdrant_client import QdrantClient
-from qdrant_client.http import models
 from llama_index.core import Settings
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.llms import MockLLM
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
 
 from rag_service.config import AppConfig
 from rag_service.llama_facade import LlamaIndexFacade

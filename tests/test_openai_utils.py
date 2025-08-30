@@ -2,8 +2,8 @@ from pathlib import Path
 
 from llama_index.core import Settings
 
-from rag_service.config import AppConfig
 import rag_service.openai_utils as ou
+from rag_service.config import AppConfig
 
 
 def test_init_warns_on_no_ssl(monkeypatch, caplog):

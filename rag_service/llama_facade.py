@@ -9,7 +9,6 @@ from qdrant_client.http import models
 from .config import AppConfig
 from .openai_utils import init_llamaindex_clients
 
-
 DISTANCE_MAP = {
     "Cosine": models.Distance.COSINE,
     "Euclid": models.Distance.EUCLID,

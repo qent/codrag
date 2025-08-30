@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import logging
 import os
+
+import numpy as np
 from httpx import Client
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.openai_like import OpenAILike
 from llama_index.core import Settings
 from llama_index.core.base.embeddings.base import Embedding
 from llama_index.core.callbacks import CallbackManager, LlamaDebugHandler
-import numpy as np
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai_like import OpenAILike
 
 from .config import AppConfig, OpenAIClientConfig
 from .langchain_logging import LangChainLogHandler

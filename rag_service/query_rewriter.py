@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from .config import OpenAIClientConfig
 from .openai_utils import build_langchain_llm
 
-
 # Collection-specific prompt templates
 _CODE_PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "query_rewriter_code.md"

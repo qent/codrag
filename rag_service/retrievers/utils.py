@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import logging
 from typing import List, Sequence
 
 from llama_index.core.schema import NodeWithScore
-import logging
 
 
 class CrossEncoderReranker:

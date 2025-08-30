@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from rag_service.config import AppConfig
 
 

@@ -1,22 +1,21 @@
 from pathlib import Path
-from typing import Any
-import pytest
-
-from qdrant_client import QdrantClient
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
+import pytest
 from llama_index.core import Settings
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.llms import MockLLM
+from llama_index.core.schema import TextNode
 from pydantic import PrivateAttr
+from qdrant_client import QdrantClient
 
+from rag_service.collection_utils import collection_prefix_from_path
 from rag_service.config import AppConfig
 from rag_service.indexer import PathIndexer, index_path
-from llama_index.core.schema import TextNode
 from rag_service.llama_facade import LlamaIndexFacade
 from rag_service.retriever import build_query_engine
-from rag_service.collection_utils import collection_prefix_from_path
 
 
 class DummyEmbedding(BaseEmbedding):

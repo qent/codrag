@@ -2,21 +2,22 @@ from __future__ import annotations
 
 import argparse
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
+from .collection_utils import collection_prefix_from_path
 from .config import AppConfig
 from .indexer import index_path
 from .llama_facade import LlamaIndexFacade
-from .retriever import build_query_engine
 from .openai_utils import close_llamaindex_clients
-from .collection_utils import collection_prefix_from_path
+from .retriever import build_query_engine
+
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Sequence
-
 from llama_index.core.schema import NodeWithScore, TextNode
 
 from rag_service.query_metadata import FileQueryMetadata, boost_file_nodes_by_metadata

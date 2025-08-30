@@ -6,9 +6,10 @@ from llama_index.core import Settings, VectorStoreIndex
 from llama_index.core.schema import NodeWithScore
 from qdrant_client import QdrantClient
 
+from .neighbor import expand_with_neighbors
+from .utils import fuse_results
 from ..config import AppConfig
 from ..llama_facade import LlamaIndexFacade
-from .utils import fuse_results
 
 
 class SimpleRetriever:
@@ -23,6 +24,8 @@ class SimpleRetriever:
     ) -> None:
         self._cfg = cfg
         self._llama = llama or LlamaIndexFacade(cfg, qdrant)
+        self._qdrant = qdrant
+        self._prefix = collection_prefix
         self._code_vs = self._llama.code_vs(collection_prefix)
         self._file_vs = self._llama.file_vs(collection_prefix)
         self._dir_vs = (
@@ -71,6 +74,12 @@ class SimpleRetriever:
         self._rrf_k = retrieval.rrf_k if hasattr(retrieval, "rrf_k") else 60
         self._max_expansions = (
             retrieval.max_expansions if hasattr(retrieval, "max_expansions") else 0
+        )
+        self._neighbor_decay = (
+            retrieval.neighbor_decay if hasattr(retrieval, "neighbor_decay") else 0.9
+        )
+        self._neighbor_limit = (
+            retrieval.neighbor_limit if hasattr(retrieval, "neighbor_limit") else 2
         )
         use_reranker = (
             retrieval.use_reranker if hasattr(retrieval, "use_reranker") else False
@@ -160,6 +169,10 @@ class SimpleRetriever:
             self._file_weight,
             self._dir_weight,
             self._rrf_k,
+        )
+        # Expand code results with immediate neighbors when possible
+        fused = expand_with_neighbors(
+            self._qdrant, self._prefix, fused, float(self._neighbor_decay), int(self._neighbor_limit)
         )
         if self._reranker is not None:
             fused = self._reranker.rerank(query, fused)

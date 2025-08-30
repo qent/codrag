@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
@@ -65,6 +65,8 @@ class RetrievalConfig(BaseModel):
     use_hyde_for_code: bool = False
     hyde_docs: int = 1
     retriever: str = "simple"
+    neighbor_decay: float = 0.9
+    neighbor_limit: int = 2
 
 
 class LlamaIndexConfig(BaseModel):

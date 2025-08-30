@@ -1,5 +1,3 @@
-from typing import Sequence
-
 from llama_index.core.schema import NodeWithScore, TextNode
 
 from rag_service.retrievers.utils import CrossEncoderReranker

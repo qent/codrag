@@ -7,12 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+from langchain_core.prompts import ChatPromptTemplate
 from llama_index.core import Document, Settings, StorageContext, VectorStoreIndex
 from llama_index.core.node_parser import CodeSplitter
+from pydantic import BaseModel, Field
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
-from langchain_core.prompts import ChatPromptTemplate
-from pydantic import BaseModel, Field
 
 from .config import AppConfig
 from .llama_facade import LlamaIndexFacade
@@ -140,6 +140,7 @@ class PathIndexer:
             content = node.get_content() or ""
             node.metadata.update(
                 {
+                    "node_id": node.node_id,
                     "file_path": str(file_path),
                     "file_hash": file_hash,
                     "dir_path": str(file_path.parent),

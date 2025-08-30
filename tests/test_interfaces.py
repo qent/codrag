@@ -1,10 +1,10 @@
 from pathlib import Path
 
 import pytest
-from rag_service.interface_extractor import extract_public_interfaces
-from rag_service import main
 from pytest import MonkeyPatch
 
+from rag_service import main
+from rag_service.interface_extractor import extract_public_interfaces
 
 LANG_CASES = {
     "python": {
