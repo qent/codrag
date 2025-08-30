@@ -39,14 +39,19 @@ class LlamaIndexFacade:
         return Settings.llm
 
     def _create_vs(self, name: str, distance_name: str, vector_size: int) -> QdrantVectorStore:
-        """Create or recreate a Qdrant collection and return its vector store."""
+        """Create a Qdrant collection when missing and return its vector store.
+
+        Avoids deprecated ``recreate_collection`` by checking for existence and
+        creating the collection if it does not already exist.
+        """
 
         if name not in self._stores:
-            distance = DISTANCE_MAP[distance_name]
-            self.qdrant.recreate_collection(
-                name,
-                vectors_config=models.VectorParams(size=vector_size, distance=distance),
-            )
+            if not self.qdrant.collection_exists(name):
+                distance = DISTANCE_MAP[distance_name]
+                self.qdrant.create_collection(
+                    name,
+                    vectors_config=models.VectorParams(size=vector_size, distance=distance),
+                )
             self._stores[name] = QdrantVectorStore(
                 client=self.qdrant, collection_name=name
             )

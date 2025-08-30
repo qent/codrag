@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Sequence
 
 from llama_index.core.schema import NodeWithScore
+import logging
 
 
 class CrossEncoderReranker:
@@ -18,14 +19,18 @@ class CrossEncoderReranker:
         try:  # pragma: no cover - import error pathway
             from sentence_transformers import CrossEncoder
         except Exception:  # pragma: no cover - best effort warning
-            import logging
-
             logging.getLogger(__name__).warning(
                 "sentence-transformers not installed, reranking disabled",
             )
             self._encoder = None
         else:
-            self._encoder = CrossEncoder(model)
+            try:
+                self._encoder = CrossEncoder(model)
+            except Exception:  # pragma: no cover - model load errors
+                logging.getLogger(__name__).warning(
+                    "CrossEncoder model could not be initialized, reranking disabled",
+                )
+                self._encoder = None
 
     def rerank(self, query: str, nodes: Sequence[NodeWithScore]) -> List[NodeWithScore]:
         """Return ``nodes`` sorted by cross-encoder relevance to ``query``."""

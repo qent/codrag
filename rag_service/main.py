@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import FieldCondition, Filter, MatchValue
@@ -17,7 +18,25 @@ from .retriever import build_query_engine
 from .openai_utils import close_llamaindex_clients
 from .collection_utils import collection_prefix_from_path
 
-app = FastAPI()
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    """FastAPI lifespan handler to manage startup and shutdown.
+
+    Initializes configuration and shared clients at startup, and closes HTTP
+    clients on shutdown to release resources.
+    """
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default="config.json")
+    args, _ = parser.parse_known_args()
+    _load_config(Path(args.config))
+    try:
+        yield
+    finally:
+        close_llamaindex_clients()
+
+
+app = FastAPI(lifespan=_lifespan)
 CONFIG: AppConfig | None = None
 QDRANT: QdrantClient | None = None
 LLAMA: LlamaIndexFacade | None = None
@@ -74,23 +93,8 @@ def _load_config(config_path: Path) -> None:
     QE_CONFIG_ID = id(CONFIG)
 
 
-@app.on_event("startup")
-def _startup() -> None:
-    """Initialize configuration and shared clients."""
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config.json")
-    args, _ = parser.parse_known_args()
-    _load_config(Path(args.config))
-
-
-@app.on_event("shutdown")
 def _shutdown():
-    """Close OpenAI clients.
-
-    When ``LlamaIndexFacade`` is used outside FastAPI, invoke this handler
-    directly to release HTTP resources.
-    """
+    """Compatibility shim retained for direct invocation in tests or scripts."""
 
     close_llamaindex_clients()
 
@@ -128,6 +132,8 @@ def query_endpoint(req: QueryRequest):
         except Exception:
             pass
     result = qe.retrieve(req.q)
+    # Respect "top_k" early to keep response sizes predictable
+    result = result[: max(0, int(req.top_k))]
 
     if req.interfaces:
         from .interface_extractor import extract_public_interfaces
