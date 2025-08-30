@@ -338,3 +338,84 @@ def test_simple_retriever_applies_reranker(monkeypatch) -> None:
     retriever = build_query_engine(cfg, qdrant=None, llama=llama, collection_prefix="test_")
     results = retriever.retrieve("q")
     assert [n.node.node_id for n in results] == ["b", "a"]
+
+
+def test_hyde_uses_system_prompt(monkeypatch) -> None:
+    """HyDE should receive and use the per-request system prompt."""
+
+    from types import SimpleNamespace
+
+    # Configure retrieval with HyDE enabled and no expansions
+    retrieval_cfg = SimpleNamespace(
+        code_nodes_top_k=1,
+        file_cards_top_k=0,
+        dir_cards_top_k=0,
+        fusion_mode="relative_score",
+        code_weight=1.0,
+        file_weight=1.0,
+        dir_weight=1.0,
+        rrf_k=60,
+        max_expansions=0,
+        use_hyde_for_code=True,
+        hyde_docs=2,
+    )
+    query_rewriter_cfg = SimpleNamespace(
+        model="m",
+        base_url="http://localhost",
+        api_key="k",
+        verify_ssl=True,
+        timeout_sec=60,
+        retries=0,
+    )
+    generator_cfg = query_rewriter_cfg
+    cfg = SimpleNamespace(
+        llamaindex=SimpleNamespace(retrieval=retrieval_cfg),
+        openai=SimpleNamespace(query_rewriter=query_rewriter_cfg, generator=generator_cfg),
+        features=SimpleNamespace(process_directories=False),
+    )
+
+    class DummyRet:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def retrieve(self, query: str):  # pragma: no cover - simple stub
+            self.queries.append(query)
+            return []
+
+    code_ret = DummyRet()
+    code_vs = object()
+    llama = SimpleNamespace(code_vs=lambda prefix: code_vs, file_vs=lambda prefix: code_vs)
+
+    def from_vs(vs, embed_model=None):  # type: ignore[override]
+        class _Idx:
+            def as_retriever(self, similarity_top_k):
+                return code_ret
+
+        return _Idx()
+
+    monkeypatch.setattr(
+        "rag_service.retriever.VectorStoreIndex.from_vector_store", from_vs
+    )
+    monkeypatch.setattr(
+        "rag_service.retriever.rewrite_for_collections", lambda q, cfg=None: (q+"C", q, q)
+    )
+
+    captured: dict[str, str] = {"system": ""}
+
+    def fake_hyde(query: str, cfg=None, n: int = 1, system_prompt: str = ""):
+        captured["system"] = system_prompt
+        return [f"D{i}:{query}" for i in range(n)]
+
+    monkeypatch.setattr("rag_service.retriever.hyde_code_documents", fake_hyde)
+
+    retriever = build_query_engine(cfg, qdrant=None, llama=llama, collection_prefix="t_")
+    # Provide per-request system prompt
+    assert hasattr(retriever, "set_runtime_options")
+    retriever.set_runtime_options(hyde_system_prompt="SYSTEM-CONTEXT")
+
+    retriever.retrieve("Q")
+    # HyDE used the system prompt
+    assert captured["system"] == "SYSTEM-CONTEXT"
+    # Code retriever was called with drafts and the rewritten code query
+    assert any(q.startswith("D") for q in code_ret.queries)
+    assert any(q.endswith("C") for q in code_ret.queries)

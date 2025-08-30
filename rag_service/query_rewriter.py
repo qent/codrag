@@ -48,6 +48,18 @@ class _Expansions(BaseModel):
     queries: List[str] = Field(default_factory=list, description="Alternative queries")
 
 
+_HYDE_CODE_PROMPT_PATH = (
+    Path(__file__).resolve().parent.parent / "prompts" / "hyde_code.md"
+)
+_HYDE_CODE_PROMPT_TEXT = _HYDE_CODE_PROMPT_PATH.read_text()
+
+
+class _HyDEDrafts(BaseModel):
+    """Structured output containing hypothetical documents for HyDE."""
+
+    docs: List[str] = Field(default_factory=list, description="Hypothetical documents")
+
+
 def _build_llm(cfg: OpenAIClientConfig | None) -> BaseChatModel | None:
     """Thin wrapper delegating to shared LangChain LLM factory."""
 
@@ -121,3 +133,45 @@ def expand_queries(
     chain = _EXPAND_PROMPT_TMPL | llm.with_structured_output(_Expansions)
     data = chain.invoke({"query": query, "n": max_expansions})
     return data.queries[:max_expansions]
+
+
+def hyde_code_documents(
+    query: str,
+    cfg: OpenAIClientConfig | None = None,
+    n: int = 1,
+    system_prompt: str = "",
+) -> List[str]:
+    """Return up to ``n`` hypothetical code-centric documents for HyDE.
+
+    The function prompts an LLM to create concise, plausible documents that would
+    answer ``query`` in a code context. These drafts are intended to be embedded
+    and used for doc–doc similarity search against code chunks.
+
+    Parameters
+    ----------
+    query:
+        Original user query or a code-optimized rewrite of it.
+    cfg:
+        LLM configuration. When ``None`` or invalid, returns an empty list.
+    n:
+        Maximum number of hypothetical documents to generate.
+
+    Returns
+    -------
+    list[str]
+        List of hypothetical documents (may be empty).
+    """
+
+    if n <= 0:
+        return []
+    llm = _build_llm(cfg)
+    if llm is None:
+        return []
+    messages = [("system", _HYDE_CODE_PROMPT_TEXT)]
+    if system_prompt.strip():
+        messages.append(("system", system_prompt))
+    messages.append(("human", 'User query:\n"""\n{query}\n"""'))
+    prompt = ChatPromptTemplate.from_messages(messages)
+    chain = prompt | llm.with_structured_output(_HyDEDrafts)
+    data = chain.invoke({"query": query})
+    return data.docs[:n]

@@ -8,7 +8,11 @@ from qdrant_client import QdrantClient
 
 from .config import AppConfig
 from .llama_facade import LlamaIndexFacade
-from .query_rewriter import expand_queries, rewrite_for_collections
+from .query_rewriter import (
+    expand_queries,
+    rewrite_for_collections,
+    hyde_code_documents,
+)
 
 
 class CrossEncoderReranker:
@@ -137,6 +141,14 @@ def build_query_engine(
     reranker = CrossEncoderReranker() if use_reranker else None
 
     class SimpleRetriever:
+        def __init__(self) -> None:
+            self._hyde_system_prompt: str = ""
+
+        def set_runtime_options(self, hyde_system_prompt: str = "") -> None:
+            """Set per-request options such as HyDE system prompt."""
+
+            self._hyde_system_prompt = hyde_system_prompt or ""
+
         def retrieve(self, query: str):
             queries = [query]
             queries += expand_queries(
@@ -159,10 +171,20 @@ def build_query_engine(
                     seen.add(node_id)
                     dest.append(node)
 
+            use_hyde = getattr(cfg.llamaindex.retrieval, "use_hyde_for_code", False)
+            hyde_n = max(0, int(getattr(cfg.llamaindex.retrieval, "hyde_docs", 1)))
+
             for q in queries:
                 code_q, file_q, dir_q = rewrite_for_collections(
                     q, cfg.openai.query_rewriter
                 )
+                if use_hyde and hyde_n > 0:
+                    drafts = hyde_code_documents(
+                        code_q, cfg.openai.generator, n=hyde_n, system_prompt=self._hyde_system_prompt
+                    )
+                    for d in drafts:
+                        _extend_unique(code_ret.retrieve(d), code_nodes)
+                # Also query with the rewritten code query to keep recall high.
                 _extend_unique(code_ret.retrieve(code_q), code_nodes)
                 _extend_unique(file_ret.retrieve(file_q), file_nodes)
                 if cfg.features.process_directories and dir_ret is not None:

@@ -37,6 +37,7 @@ class QueryRequest(BaseModel):
     top_k: int = 10
     interfaces: bool = False
     return_text_description: bool = False
+    hyde_system_prompt: str | None = None
 
 
 def _with_file_path_prefix(metadata: dict) -> dict:
@@ -117,7 +118,14 @@ def query_endpoint(req: QueryRequest):
     prefix = collection_prefix_from_path(req.root_path)
     if QE_CONFIG_ID != id(CONFIG) or prefix not in QE:
         _build_query_engine(prefix)
-    result = QE[prefix].retrieve(req.q)
+    # Propagate optional runtime options (e.g., HyDE system prompt) if supported
+    qe = QE[prefix]
+    if hasattr(qe, "set_runtime_options"):
+        try:
+            qe.set_runtime_options(hyde_system_prompt=req.hyde_system_prompt or "")
+        except Exception:
+            pass
+    result = qe.retrieve(req.q)
 
     if req.interfaces:
         from .interface_extractor import extract_public_interfaces
