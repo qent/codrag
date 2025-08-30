@@ -4,11 +4,18 @@ from rag_service.query_rewriter import expand_queries, rewrite_for_collections
 
 
 class DummyLLM:
-    """LLM stub returning fixed structured output."""
+    """LLM stub returning deterministic single-field outputs across calls."""
+
+    def __init__(self):
+        self._vals = iter(["c", "f", "d"])  # three sequential calls -> code, file, dir
 
     def with_structured_output(self, model):  # pragma: no cover - simple stub
         def _call(_):
-            return SimpleNamespace(code="c", file="f", dir="d")
+            try:
+                val = next(self._vals)
+            except StopIteration:
+                val = "x"
+            return SimpleNamespace(query=val)
 
         return _call
 
@@ -38,4 +45,3 @@ def test_expand_queries(monkeypatch) -> None:
     )
     res = expand_queries("query", cfg=object(), max_expansions=2)
     assert res == ["a", "b"]
-

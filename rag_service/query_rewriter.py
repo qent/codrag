@@ -13,8 +13,20 @@ from .config import OpenAIClientConfig
 from .openai_utils import build_langchain_llm
 
 
-_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "query_rewriter.md"
-_PROMPT_TMPL = ChatPromptTemplate.from_template(_PROMPT_PATH.read_text())
+# Collection-specific prompt templates
+_CODE_PROMPT_PATH = (
+    Path(__file__).resolve().parent.parent / "prompts" / "query_rewriter_code.md"
+)
+_FILE_PROMPT_PATH = (
+    Path(__file__).resolve().parent.parent / "prompts" / "query_rewriter_file.md"
+)
+_DIR_PROMPT_PATH = (
+    Path(__file__).resolve().parent.parent / "prompts" / "query_rewriter_dir.md"
+)
+
+_CODE_PROMPT_TMPL = ChatPromptTemplate.from_template(_CODE_PROMPT_PATH.read_text())
+_FILE_PROMPT_TMPL = ChatPromptTemplate.from_template(_FILE_PROMPT_PATH.read_text())
+_DIR_PROMPT_TMPL = ChatPromptTemplate.from_template(_DIR_PROMPT_PATH.read_text())
 
 _EXPAND_PROMPT_PATH = (
     Path(__file__).resolve().parent.parent / "prompts" / "query_expander.md"
@@ -24,12 +36,10 @@ _EXPAND_PROMPT_TMPL = ChatPromptTemplate.from_template(
 )
 
 
-class _Queries(BaseModel):
-    """Structured output for specialized queries."""
+class _SingleQuery(BaseModel):
+    """Structured output containing a single rewritten query."""
 
-    code: str = Field(description="Query for code snippets")
-    file: str = Field(description="Query for file descriptions")
-    dir: str = Field(description="Query for directory overviews")
+    query: str = Field(description="Rewritten query")
 
 
 class _Expansions(BaseModel):
@@ -49,13 +59,16 @@ def rewrite_for_collections(
 ) -> Tuple[str, str, str]:
     """Rewrite ``query`` for code, file and directory collections using ``cfg``.
 
+    The function uses three dedicated prompts (one per collection) to avoid mixing
+    guidance. If the LLM configuration is missing or invalid, the original
+    ``query`` is returned for all collections.
+
     Parameters
     ----------
     query:
         Original user query.
     cfg:
-        Configuration for the LLM. When ``None`` or misconfigured the original
-        ``query`` is returned for all collections.
+        Configuration for the LLM.
 
     Returns
     -------
@@ -66,9 +79,15 @@ def rewrite_for_collections(
     llm = _build_llm(cfg)
     if llm is None:
         return query, query, query
-    chain = _PROMPT_TMPL | llm.with_structured_output(_Queries)
-    data = chain.invoke({"query": query})
-    return data.code, data.file, data.dir
+
+    code_chain = _CODE_PROMPT_TMPL | llm.with_structured_output(_SingleQuery)
+    file_chain = _FILE_PROMPT_TMPL | llm.with_structured_output(_SingleQuery)
+    dir_chain = _DIR_PROMPT_TMPL | llm.with_structured_output(_SingleQuery)
+
+    code = code_chain.invoke({"query": query}).query
+    file = file_chain.invoke({"query": query}).query
+    dir = dir_chain.invoke({"query": query}).query
+    return code, file, dir
 
 
 def expand_queries(
