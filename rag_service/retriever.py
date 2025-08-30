@@ -13,6 +13,10 @@ from .query_rewriter import (
     rewrite_for_collections,
     hyde_code_documents,
 )
+from .query_metadata import (
+    extract_file_query_metadata,
+    boost_file_nodes_by_metadata,
+)
 
 
 class CrossEncoderReranker:
@@ -174,6 +178,9 @@ def build_query_engine(
             use_hyde = getattr(cfg.llamaindex.retrieval, "use_hyde_for_code", False)
             hyde_n = max(0, int(getattr(cfg.llamaindex.retrieval, "hyde_docs", 1)))
 
+            # Extract metadata once from the original query for use with file-card results
+            file_query_meta = extract_file_query_metadata(query, cfg.openai.query_rewriter)
+
             for q in queries:
                 code_q, file_q, dir_q = rewrite_for_collections(
                     q, cfg.openai.query_rewriter
@@ -189,6 +196,9 @@ def build_query_engine(
                 _extend_unique(file_ret.retrieve(file_q), file_nodes)
                 if cfg.features.process_directories and dir_ret is not None:
                     _extend_unique(dir_ret.retrieve(dir_q), dir_nodes)
+            # Soft-boost file results using extracted metadata before fusion
+            file_nodes = boost_file_nodes_by_metadata(file_nodes, file_query_meta)
+
             fused = fuse_results(
                 code_nodes,
                 file_nodes,
