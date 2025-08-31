@@ -17,7 +17,7 @@ services:
     volumes:
       - ./config.json:/app/config.json:ro
       - ./prompts:/app/prompts:ro
-      - /host/repo:/repo:ro
+      - ${REPOS_ROOT}:/repo:ro
     ports:
       - "8080:8080"
     depends_on:
@@ -26,7 +26,7 @@ services:
   web:
     build: ./web
     environment:
-      - ROOT_PATH=/repo
+      - ROOT_PATH=${INDEXED_REPO}
       - HYDE_PROMPT_PATH=/app/prompts/hyde_code.md
       - QUERY_URL=http://rag:8080/v1/query
     volumes:

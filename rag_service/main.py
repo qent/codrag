@@ -16,6 +16,7 @@ from .config import AppConfig
 from .indexer import index_path
 from .llama_facade import LlamaIndexFacade
 from .openai_utils import close_llamaindex_clients
+from .logging_setup import setup_logging
 from .retriever import build_query_engine
 
 
@@ -88,6 +89,12 @@ def _load_config(config_path: Path) -> None:
 
     global CONFIG, QDRANT, LLAMA, QE_CONFIG_ID
     CONFIG = AppConfig.load(config_path)
+    # Initialize logging as soon as configuration is available
+    try:
+        setup_logging(CONFIG)
+    except Exception:
+        # Do not block startup on logging setup issues
+        pass
     QDRANT = QdrantClient(url=CONFIG.qdrant.url)
     LLAMA = LlamaIndexFacade(CONFIG, QDRANT)
     QE.clear()
@@ -253,4 +260,9 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="config.json")
     args = parser.parse_args()
     _load_config(Path(args.config))
-    uvicorn.run(app, host="0.0.0.0", port=CONFIG.http.port)
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=CONFIG.http.port,
+        log_level=(CONFIG.logging.level.lower() if CONFIG else "info"),
+    )

@@ -12,19 +12,94 @@
 </head>
 <body>
     <textarea id="query" placeholder="Введите запрос..."></textarea>
-    <button id="submit">Отправить</button>
+    <div>
+        <button id="submit">Отправить</button>
+        <button id="cancel" disabled>Отменить</button>
+        <span id="status" style="margin-left: 1rem; color: #555;"></span>
+    </div>
     <pre id="result"></pre>
     <script>
+    let pollTimer = null;
+
+    function setInProgress(inProgress, elapsedMs = 0) {
+        const submit = document.getElementById('submit');
+        const cancel = document.getElementById('cancel');
+        const status = document.getElementById('status');
+        submit.disabled = inProgress;
+        cancel.disabled = !inProgress;
+        if (inProgress) {
+            const secs = Math.floor(elapsedMs / 1000);
+            const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+            const ss = String(secs % 60).padStart(2, '0');
+            status.textContent = `Запрос выполняется… ${mm}:${ss}`;
+        } else {
+            status.textContent = '';
+        }
+    }
+
+    async function pollStatus() {
+        try {
+            const r = await fetch('/search/status');
+            const s = await r.json();
+            if (s.in_progress) {
+                setInProgress(true, s.elapsed_ms || 0);
+                // keep polling
+            } else {
+                setInProgress(false);
+                clearInterval(pollTimer); pollTimer = null;
+                // fetch the result once done
+                const res = await fetch('/search/result');
+                const data = await res.json();
+                document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            }
+        } catch (e) {
+            // swallow errors during polling to avoid UI flicker
+        }
+    }
+
+    async function beginPolling() {
+        if (pollTimer) return;
+        await pollStatus();
+        pollTimer = setInterval(pollStatus, 1500);
+    }
+
     document.getElementById('submit').onclick = async () => {
         const q = document.getElementById('query').value;
-        const res = await fetch('/search', {
+        document.getElementById('result').textContent = '';
+        const res = await fetch('/search/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: q })
         });
-        const data = await res.json();
-        document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+        if (res.status === 409) {
+            setInProgress(true);
+            await beginPolling();
+            return;
+        }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            document.getElementById('result').textContent = JSON.stringify(err, null, 2);
+            return;
+        }
+        setInProgress(true);
+        await beginPolling();
     };
+
+    document.getElementById('cancel').onclick = async () => {
+        await fetch('/search/cancel', { method: 'POST' });
+        // Give server a moment to settle, then poll status
+        setTimeout(pollStatus, 300);
+    };
+
+    // On load, check if a query is already running and reflect that
+    (async () => {
+        const r = await fetch('/search/status');
+        const s = await r.json();
+        if (s.in_progress) {
+            setInProgress(true, s.elapsed_ms || 0);
+            await beginPolling();
+        }
+    })();
     </script>
 </body>
 </html>
