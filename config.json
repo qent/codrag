@@ -72,9 +72,10 @@
   "llamaindex": {
     "use": true,
     "retrieval": {
-      "code_nodes_top_k": 6,
+      "code_nodes_top_k": 8,
       "file_cards_top_k": 4,
       "dir_cards_top_k": 2,
+      "code_per_file_top_k": 2,
       "fusion_mode": "relative_score",
       "use_reranker": true,
       "code_weight": 1.0,

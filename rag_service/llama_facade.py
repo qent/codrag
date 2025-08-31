@@ -51,6 +51,8 @@ class LlamaIndexFacade:
                     name,
                     vectors_config=models.VectorParams(size=vector_size, distance=distance),
                 )
+            # Ensure helpful payload indexes exist (best-effort), even for existing collections
+            self._ensure_payload_indexes(name)
             self._stores[name] = QdrantVectorStore(
                 client=self.qdrant, collection_name=name
             )
@@ -73,3 +75,38 @@ class LlamaIndexFacade:
 
         name = f"{collection_prefix}dir_cards"
         return self._create_vs(name, self.cfg.qdrant.text_distance, self._text_vector_size)
+
+    # --------------------
+    # Internal helpers
+    # --------------------
+
+    def _ensure_payload_indexes(self, name: str) -> None:
+        """Create useful payload indexes for ``name`` collection (best-effort).
+
+        Adds keyword indexes that speed up common filters used by the service.
+        Errors are ignored to keep initialization resilient.
+        """
+
+        def _idx(field: str) -> None:
+            try:
+                self.qdrant.create_payload_index(
+                    name,
+                    field_name=field,
+                    field_schema=models.PayloadSchemaType.KEYWORD,
+                )
+            except Exception:
+                pass
+
+        try:
+            if name.endswith("code_nodes"):
+                for f in ("file_path", "dir_path", "lang", "node_id", "type"):
+                    _idx(f)
+            elif name.endswith("file_cards"):
+                for f in ("file_path", "file_hash", "dir_path", "lang", "type", "keywords"):
+                    _idx(f)
+            elif name.endswith("dir_cards"):
+                for f in ("dir_path", "parent_dir", "type"):
+                    _idx(f)
+        except Exception:
+            # Any unexpected error should not prevent startup
+            pass

@@ -74,6 +74,21 @@ class PathIndexer:
             self._generate_dir_cards(root, dir_items, stats)
         return stats
 
+    def _delete_by_file_path(self, collection: str, file_path: Path) -> None:
+        """Delete all points in ``collection`` that match ``file_path``.
+
+        Best-effort: failures are ignored to keep indexing resilient.
+        """
+
+        flt = Filter(
+            must=[FieldCondition(key="file_path", match=MatchValue(value=str(file_path)))]
+        )
+        try:
+            self.qdrant.delete(collection, points_selector=flt, wait=True)
+        except Exception:
+            # Ignore connectivity or collection errors; indexing proceeds.
+            pass
+
     def _scan_files(self, root: Path) -> List[Path]:
         """Return a list of files eligible for indexing."""
 
@@ -218,6 +233,13 @@ class PathIndexer:
         self, file_path: Path, stats: IndexStats, text: str, file_hash: str
     ) -> str:
         """Index a single file, update ``stats`` and return summary text."""
+        # Clean up any stale entries for this file before upserting new data
+        try:
+            self._delete_by_file_path(f"{self.collection_prefix}code_nodes", file_path)
+            self._delete_by_file_path(f"{self.collection_prefix}file_cards", file_path)
+        except Exception:
+            # Best-effort cleanup; continue indexing even if deletion fails
+            pass
 
         stats.files_processed += 1
         nodes = self._create_nodes(text, file_path, file_hash)

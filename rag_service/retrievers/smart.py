@@ -3,8 +3,9 @@ from __future__ import annotations
 from typing import Iterable, List, Sequence, Tuple
 
 from llama_index.core import Settings, VectorStoreIndex
-from llama_index.core.schema import NodeWithScore
+from llama_index.core.schema import NodeWithScore, TextNode
 from qdrant_client import QdrantClient
+from qdrant_client.http.models import FieldCondition, Filter, MatchValue
 
 from .neighbor import expand_with_neighbors
 from .utils import fuse_results
@@ -161,6 +162,7 @@ class SmartRetriever:
         self._hyde_docs = max(0, int(getattr(r, "hyde_docs", 1)))
         self._neighbor_decay = float(getattr(r, "neighbor_decay", 0.9))
         self._neighbor_limit = int(getattr(r, "neighbor_limit", 2))
+        self._code_per_file_top_k = int(getattr(r, "code_per_file_top_k", 2))
 
         if self._use_reranker:
             from .. import retriever as _r  # late import for monkeypatching/tests
@@ -195,9 +197,10 @@ class SmartRetriever:
     ) -> List[NodeWithScore]:
         """Retrieve code nodes, prioritizing those from ``selected_files``.
 
-        This implementation performs an initial global retrieval and filters the
-        results to the selected files. If not enough code nodes are found from
-        those files, it backfills with the next best global results.
+        When a Qdrant client with search capability is available, performs
+        per-file targeted searches constrained by ``file_path`` and respects a
+        per-file quota, then backfills from global results. Otherwise, falls
+        back to global retrieval and filtering.
         """
 
         k = max(0, int(self._cfg.llamaindex.retrieval.code_nodes_top_k))
@@ -210,6 +213,84 @@ class SmartRetriever:
 
         from .. import retriever as _r  # late import for monkeypatching/tests
 
+        use_targeted = (
+            self._qdrant is not None and hasattr(self._qdrant, "search") and selected_files
+        )
+
+        if use_targeted:
+            # 1) Per-file targeted search using Qdrant filters
+            collection = f"{self._prefix}code_nodes"
+            per_file_k = max(0, int(self._code_per_file_top_k))
+
+            for q in queries:
+                code_q, _, _ = _r.rewrite_for_collections(
+                    q, self._cfg.openai.query_rewriter
+                )
+                # Generate HyDE drafts when enabled
+                q_variants: List[str] = [code_q]
+                if self._use_hyde and self._hyde_docs > 0:
+                    drafts = _r.hyde_code_documents(
+                        code_q,
+                        self._cfg.openai.generator,
+                        n=self._hyde_docs,
+                        system_prompt=self._hyde_system_prompt,
+                    )
+                    q_variants.extend(drafts)
+
+                for qv in q_variants:
+                    try:
+                        vec = Settings.code_embed_model.get_query_embedding(qv)
+                    except Exception:
+                        # Fallback to text embedding if query embedding unavailable
+                        vec = Settings.code_embed_model.get_text_embedding(qv)
+                    for fp in selected_files:
+                        if len(candidates) >= k:
+                            break
+                        try:
+                            flt = Filter(
+                                must=[
+                                    FieldCondition(
+                                        key="file_path", match=MatchValue(value=str(fp))
+                                    )
+                                ]
+                            )
+                            results = self._qdrant.search(
+                                collection_name=collection,
+                                query_vector=vec,
+                                limit=per_file_k,
+                                with_payload=True,
+                                with_vectors=False,
+                                query_filter=flt,
+                            )
+                        except Exception:
+                            results = []
+                        for p in results:
+                            payload = (p.payload or {}).copy()
+                            text = str(payload.pop("text", ""))
+                            nid = str(payload.get("node_id") or "")
+                            node = TextNode(id_=nid or None, text=text, metadata=payload)
+                            _unique_extend([NodeWithScore(node=node, score=float(p.score or 0.0))], candidates, seen)
+
+            # 2) Backfill with global retrieval using LlamaIndex retriever if needed
+            if len(candidates) < k:
+                for q in queries:
+                    code_q, _, _ = _r.rewrite_for_collections(
+                        q, self._cfg.openai.query_rewriter
+                    )
+                    if self._use_hyde and self._hyde_docs > 0:
+                        drafts = _r.hyde_code_documents(
+                            code_q,
+                            self._cfg.openai.generator,
+                            n=self._hyde_docs,
+                            system_prompt=self._hyde_system_prompt,
+                        )
+                        for d in drafts:
+                            _unique_extend(self._code_ret.retrieve(d), candidates, seen)
+                    _unique_extend(self._code_ret.retrieve(code_q), candidates, seen)
+
+            return candidates[:k]
+
+        # Fallback: global retrieval and filter by selected files, then backfill
         for q in queries:
             code_q, _, _ = _r.rewrite_for_collections(q, self._cfg.openai.query_rewriter)
             if self._use_hyde and self._hyde_docs > 0:
@@ -223,7 +304,6 @@ class SmartRetriever:
                     _unique_extend(self._code_ret.retrieve(d), candidates, seen)
             _unique_extend(self._code_ret.retrieve(code_q), candidates, seen)
 
-        # Prefer results from selected files
         sel = {s.lower() for s in selected_files}
         preferred: List[NodeWithScore] = []
         others: List[NodeWithScore] = []

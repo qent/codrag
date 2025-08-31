@@ -55,6 +55,7 @@ class RetrievalConfig(BaseModel):
     code_nodes_top_k: int = 6
     file_cards_top_k: int = 4
     dir_cards_top_k: int = 2
+    code_per_file_top_k: int = 2
     fusion_mode: str = "relative_score"
     use_reranker: bool = False
     code_weight: float = 1.0
