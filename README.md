@@ -22,6 +22,20 @@ pytest
 uvicorn rag_service.main:app --reload
 ```
 
+## Web Interface
+
+The repository includes a minimal web interface for sending queries to the RAG service.
+Launch it together with the service using Docker Compose:
+
+```bash
+docker-compose up web
+```
+
+The container is configured via environment variables:
+
+- `ROOT_PATH`: path to the indexed repository.
+- `HYDE_PROMPT_PATH`: file with the HyDE system prompt used during queries.
+
 ## Reranking
 
 To re-order retrieval results with a cross-encoder model, enable the reranker in the

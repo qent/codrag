@@ -21,3 +21,16 @@ services:
       - "8080:8080"
     depends_on:
       - qdrant
+
+  web:
+    build: ./web
+    environment:
+      - ROOT_PATH=/repo
+      - HYDE_PROMPT_PATH=/app/prompts/hyde_code.md
+      - QUERY_URL=http://rag:8080/v1/query
+    volumes:
+      - ./prompts:/app/prompts:ro
+    ports:
+      - "3000:8000"
+    depends_on:
+      - rag
