@@ -1,0 +1,46 @@
+version: "3.8"
+
+# IPv6 overlay: enable IPv6 bindings and networking via a profile.
+
+services:
+  qdrant:
+    profiles: ["ipv6"]
+    ports:
+      - "[::]:6333:6333"
+      - "[::]:6334:6334"
+    networks:
+      - ipv6net
+
+  rag:
+    profiles: ["ipv6"]
+    environment:
+      - BIND_HOST=::
+    ports:
+      - "[::]:8080:8080"
+    networks:
+      - ipv6net
+    depends_on:
+      - qdrant
+
+  web:
+    profiles: ["ipv6"]
+    # Override command to bind on IPv6 inside the container
+    command: ["uvicorn", "app:app", "--host", "::", "--port", "8000"]
+    ports:
+      - "[::]:3000:8000"
+    networks:
+      - ipv6net
+    depends_on:
+      - rag
+
+networks:
+  ipv6net:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "true"
+    ipam:
+      driver: default
+      config:
+        # Unique local address space; adjust if it conflicts in your environment.
+        - subnet: "fd00:dead:beef::/48"
+

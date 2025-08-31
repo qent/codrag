@@ -36,6 +36,27 @@ The container is configured via environment variables:
 - `ROOT_PATH`: path to the indexed repository.
 - `HYDE_PROMPT_PATH`: file with the HyDE system prompt used during queries.
 
+### IPv6 support
+
+This project includes an optional Compose overlay and profile to enable IPv6 port bindings and an
+IPv6-enabled Docker network. Use it when running on IPv6-only hosts (or when you want explicit IPv6).
+
+Commands:
+
+```bash
+# Default (IPv4-only ports, default bridge network)
+docker compose up -d
+
+# IPv6 mode (adds IPv6 bindings and IPv6 bridge)
+docker compose --profile ipv6 -f docker-compose.yml -f docker-compose.ipv6.yml up -d
+```
+
+Notes:
+
+- In IPv6 mode, services bind to `::` inside containers and publish ports to `[::]` on the host.
+- The overlay creates an IPv6-enabled bridge network `ipv6net` (ULA `fd00:dead:beef::/48`).
+- Docker daemon must have IPv6 support enabled. If not, IPv6 mode will fail during network creation.
+
 ## Reranking
 
 To re-order retrieval results with a cross-encoder model, enable the reranker in the

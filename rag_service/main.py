@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -105,6 +106,21 @@ def _shutdown():
     """Compatibility shim retained for direct invocation in tests or scripts."""
 
     close_llamaindex_clients()
+
+
+def _resolve_bind_host() -> str:
+    """Return the HTTP bind host for the server.
+
+    Reads ``BIND_HOST`` from the environment to decide which interface to bind
+    to. Defaults to ``0.0.0.0`` (IPv4 wildcard). To support IPv6-only or
+    dual-stack environments, set ``BIND_HOST=::`` so the server listens on the
+    IPv6 wildcard address.
+
+    Returns:
+        The host string to pass to the ASGI server.
+    """
+
+    return os.environ.get("BIND_HOST", "0.0.0.0")
 
 
 @app.post("/v1/index")
@@ -260,9 +276,10 @@ if __name__ == "__main__":
     parser.add_argument("--config", default="config.json")
     args = parser.parse_args()
     _load_config(Path(args.config))
+    host = _resolve_bind_host()
     uvicorn.run(
         app,
-        host="0.0.0.0",
+        host=host,
         port=CONFIG.http.port,
         log_level=(CONFIG.logging.level.lower() if CONFIG else "info"),
     )
