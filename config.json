@@ -64,7 +64,7 @@
     "dir_card_md": "./prompts/dir_card.md"
   },
   "qdrant": {
-    "url": "http://localhost:6333",
+    "url": "http://qdrant:6333",
     "code_distance": "Cosine",
     "text_distance": "Cosine",
     "prefer_grpc": false

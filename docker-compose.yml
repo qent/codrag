@@ -10,8 +10,9 @@ services:
     build: .
     environment:
       - CONFIG_PATH=/app/config.json
-      - OPENAI_API_KEY_EMB=${OPENAI_API_KEY_EMB}
-      - OPENAI_API_KEY_GEN=${OPENAI_API_KEY_GEN}
+      - OPENAI_API_KEY_EMB=${OPENAI_API_KEY}
+      - OPENAI_API_KEY_GEN=${OPENAI_API_KEY}
+      - OPENAI_API_KEY_REW=${OPENAI_API_KEY}
       - LLM_LOGGING=${LLM_LOGGING}
     volumes:
       - ./config.json:/app/config.json:ro
