@@ -4,7 +4,7 @@ Transform the user's request into ONE short, embedding‑friendly query optimize
 
 Guidelines
 - Keep concise (4–12 words), readable, and embedding‑friendly.
-- Preserve original language; do not translate.
+- Output must be in English. If the input is not English, translate to natural English while preserving identifiers, filenames, and exact tokens.
 - Use natural‑language keywords: purpose, responsibilities, technologies, protocols, component names, features,
   domains, and relevant filenames/extensions if helpful.
 - Prefer nouns and short noun phrases; include 1–2 close synonyms only if useful.
@@ -15,4 +15,3 @@ User query:
 """
 {query}
 """
-

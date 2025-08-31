@@ -23,6 +23,7 @@ Return only a JSON object with these fields (in this exact order):
 
 # Rules
 
+- All outputs must be in English. If the file content or hints are in another language, describe them in English without translating code identifiers or literals.
 - Truthfulness first: Base everything strictly on file_content (+ optional hints). Do not invent classes, functions, behavior, or dependencies. If uncertain, be concise and say “unknown” (but avoid speculation).
 - No code dumps: Mention important symbol names/signatures briefly if helpful (one line max), but don’t paste large code.
 - File awareness: Note whether it’s a test, config, script, or generated file only if evident from content.
@@ -30,9 +31,9 @@ Return only a JSON object with these fields (in this exact order):
 - Security & performance: Mention validation, secret handling, auth, and clear hot paths/complexity hints only when visible.
 
 Style & length:
-- summary: 5–8 sentences, plain English, describing what the file does, why it exists, and how it fits the module or system.
-- key_points: 6–10 one-line, high-signal bullets (strings). Prefer responsibilities, APIs, data flow, I/O, errors, concurrency, security/perf notes.
-- embedding_text: one paragraph, 120–180 words, dense natural language restating purpose, key symbols, inputs/outputs, side-effects, dependencies, notable behaviors. Include the file_path and the most important exported names to help retrieval. No lists, no markdown, no code fences.
+- summary: 5–8 sentences in English, describing what the file does, why it exists, and how it fits the module or system.
+- key_points: 6–10 one-line, high-signal bullets (strings) in English. Prefer responsibilities, APIs, data flow, I/O, errors, concurrency, security/perf notes.
+- embedding_text: one paragraph in English, 120–180 words, dense natural language restating purpose, key symbols, inputs/outputs, side-effects, dependencies, notable behaviors. Include the file_path and the most important exported names to help retrieval. No lists, no markdown, no code fences.
 - keywords: 8–15 short, specific tags (technologies, patterns, domain terms, frameworks, protocols, data structures). Lowercase; no spaces if possible (use hyphens/underscores).
 
 Determinism: Output valid JSON only, no trailing commas, no markdown, no explanations. Always include all four fields; use [] for empty arrays and "" for empty strings if truly nothing is extractable.

@@ -4,7 +4,7 @@ Transform the user's request into ONE short, embedding‑friendly query optimize
 
 Guidelines
 - Keep concise (3–10 words) and thematic.
-- Preserve original language; do not translate.
+- Output must be in English. If the input is not English, translate to natural English while preserving identifiers, filenames, and exact tokens.
 - Use higher‑level topics and subsystem names (e.g., authentication, billing, data pipeline, CI/CD, deployment,
   migrations, tests, observability, configuration, documentation).
 - Mention artifact types (scripts, configs, docs) when relevant; avoid very specific identifiers.
@@ -14,4 +14,3 @@ User query:
 """
 {query}
 """
-

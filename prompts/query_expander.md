@@ -5,7 +5,8 @@ Task
 - Make them embedding‑friendly: short, keyword‑oriented, and free of filler.
 
 Guidelines
-- Keep the same language as the input; do not translate.
+- Always output in English. If the input is not English, first translate it to concise, natural English while
+  preserving any code identifiers, error messages, and exact tokens.
 - If the query contains code identifiers or error messages, keep those tokens intact and
   vary the surrounding words (e.g., function/method, class/type, variable/env var).
 - Consider common synonyms and adjacent terminology (e.g., CI/CD ↔ GitHub Actions, HTTP server ↔ web server,
@@ -15,7 +16,7 @@ Guidelines
 - Aim for 3–8 words each; do not exceed {n} items.
 
 Output
-- Return JSON with a single key "queries": a list of alternatives (max {n}).
+- Return JSON with a single key "queries": a list of alternatives (max {n}), all in English.
 
 User query:
 """
