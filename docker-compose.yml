@@ -28,7 +28,12 @@ services:
     environment:
       - ROOT_PATH=${INDEXED_REPO}
       - HYDE_PROMPT_PATH=/app/prompts/hyde_code.md
+      - WEB_SYSTEM_PROMPT_PATH=/app/prompts/web_system_prompt.md
       - QUERY_URL=http://rag:8080/v1/query
+      - WEB_LLM_ENDPOINT=${WEB_LLM_ENDPOINT}
+      - WEB_LLM_API_KEY=${WEB_LLM_API_KEY}
+      - WEB_LLM_MODEL=${WEB_LLM_MODEL}
+      - WEB_LLM_IGNORE_HTTPS=${WEB_LLM_IGNORE_HTTPS}
     volumes:
       - ./prompts:/app/prompts:ro
     ports:

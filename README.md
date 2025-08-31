@@ -35,6 +35,17 @@ The container is configured via environment variables:
 
 - `ROOT_PATH`: path to the indexed repository.
 - `HYDE_PROMPT_PATH`: file with the HyDE system prompt used during queries.
+- `WEB_SYSTEM_PROMPT_PATH`: file with the web system prompt for answer generation (Markdown).
+- `WEB_LLM_ENDPOINT`: OpenAI-compatible chat completions base URL for web post-processing.
+- `WEB_LLM_API_KEY`: API token for the web LLM endpoint.
+- `WEB_LLM_MODEL`: Model name used by LangChain (e.g., `gpt-4o-mini`).
+- `WEB_LLM_IGNORE_HTTPS`: Set to `true` to ignore TLS verification for the web LLM.
+- `WEB_UPSTREAM_TIMEOUT_SEC`: Total timeout in seconds for the web service when calling the RAG backend
+  (defaults to 310 seconds).
+
+The web app renders a human-readable Markdown answer produced by LangChain based
+solely on the retrieved RAG context. If the question asks for code, snippets are
+included with links to the original files.
 
 ### IPv6 support
 
