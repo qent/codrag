@@ -87,46 +87,40 @@ async function pollStatus() {
         const s = await r.json();
         if (s.in_progress) {
             setInProgress(true, s.elapsed_ms || 0);
-        } else {
-            setInProgress(false);
-            clearInterval(pollTimer); pollTimer = null;
-            const out = document.getElementById('result');
-            const res = await fetch('/search/result/stream');
-            if (res.ok && res.body) {
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
-                let text = '';
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    text += decoder.decode(value, { stream: true });
-                    out.textContent = text;
-                }
-                const finalRes = await fetch('/search/result');
-                const finalData = await finalRes.json();
-                if (finalData && finalData.html) {
-                    out.innerHTML = finalData.html;
-                }
-            } else {
-                // Gracefully handle non-OK stream responses: show text if present,
-                // then attempt to fetch the final result for a proper render.
-                const txt = await res.text().catch(() => '');
-                if (txt) {
-                    out.textContent = txt;
-                }
+            return;
+        }
+        setInProgress(false);
+        clearInterval(pollTimer); pollTimer = null;
+        const out = document.getElementById('result');
+        // Stream HTML via SSE and render progressively
+        const es = new EventSource('/search/result/stream');
+        await new Promise((resolve) => {
+            es.onmessage = (e) => {
                 try {
-                    const finalRes = await fetch('/search/result');
-                    const finalData = await finalRes.json();
-                    if (finalData && finalData.html) {
-                        out.innerHTML = finalData.html;
-                    } else if (!txt) {
-                        out.textContent = JSON.stringify(finalData || {}, null, 2);
+                    const data = JSON.parse(e.data);
+                    if (data && data.html) {
+                        out.innerHTML = data.html;
+                    } else if (data && data.error) {
+                        out.textContent = data.error;
                     }
                 } catch (_) {
-                    if (!txt) out.textContent = 'No result available.';
+                    // Ignore malformed frames
                 }
+            };
+            es.onerror = () => {
+                // Connection closed (normally or due to error)
+                try { es.close(); } catch (_) {}
+                resolve();
+            };
+        });
+        // Fetch the final result to ensure we show the completed render
+        try {
+            const finalRes = await fetch('/search/result');
+            const finalData = await finalRes.json();
+            if (finalData && finalData.html) {
+                out.innerHTML = finalData.html;
             }
-        }
+        } catch (_) {}
     } catch (_) {
         // ignore transient polling errors
     }

@@ -392,7 +392,13 @@ def search_status(request: Request, response: Response) -> dict:
 
 @app.get("/search/result/stream")
 async def search_result_stream(request: Request, response: Response) -> StreamingResponse:
-    """Stream the LLM answer as it is generated."""
+    """Stream HTML-rendered answer via Server-Sent Events (SSE).
+
+    This endpoint converts the incrementally generated Markdown into HTML on
+    the server and streams "full snapshot" HTML frames to the client using SSE.
+    The client replaces the current HTML with each incoming frame for a smooth
+    live-rendering experience.
+    """
 
     uid = _get_or_set_user_id(request, response)
     state = _state_for(uid)
@@ -405,33 +411,55 @@ async def search_result_stream(request: Request, response: Response) -> Streamin
         raise HTTPException(status_code=404, detail="No result available")
 
     async def iterator() -> AsyncGenerator[str, None]:
-        """Yield answer chunks; if LLM fails, stream the error text.
+        """Yield SSE "data:" frames containing full HTML snapshots.
 
-        This ensures clients always receive some body data even when the
-        summarization layer raises early, avoiding a 200 with an empty body.
+        On each token batch from the LLM, we re-render the entire accumulated
+        Markdown to HTML using the same settings as the non-streaming path and
+        emit it as a JSON payload in an SSE message. This keeps the client
+        implementation simple and avoids partial-HTML glitches.
         """
 
         acc = ""
-        # Send a tiny priming chunk to trigger streaming on some proxies
-        # and clients before heavy work begins.
-        yield "\n"
+        # Initial ping to open the SSE stream promptly
+        yield "event: ping\ndata: 1\n\n"
         try:
             async for chunk in _summarize_to_markdown_stream(state.query or "", state.result):
                 acc += chunk
-                yield chunk
+                try:
+                    html = markdown2.markdown(
+                        acc,
+                        extras=[
+                            "fenced-code-blocks",
+                            "tables",
+                            "strike",
+                            "task_list",
+                            "toc",
+                            "code-friendly",
+                        ],
+                    )
+                except Exception:
+                    html = f"<pre>{acc}</pre>"
+                payload = json.dumps({"html": html}, ensure_ascii=False)
+                yield f"data: {payload}\n\n"
             state.answer = acc
         except HTTPException as exc:
-            # Stream structured error detail if available
             detail = exc.detail if isinstance(exc.detail, str) else json.dumps(exc.detail)
             msg = f"LLM rendering failed: {detail}"
             state.answer = msg
-            yield msg
+            payload = json.dumps({"error": msg}, ensure_ascii=False)
+            yield f"data: {payload}\n\n"
         except Exception as exc:  # Catch-all to avoid empty 200 bodies
             msg = f"LLM rendering failed: {exc}"
             state.answer = msg
-            yield msg
+            payload = json.dumps({"error": msg}, ensure_ascii=False)
+            yield f"data: {payload}\n\n"
 
-    return StreamingResponse(iterator(), media_type="text/plain; charset=utf-8")
+    headers = {
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+    }
+    return StreamingResponse(iterator(), media_type="text/event-stream", headers=headers)
 
 
 @app.get("/search/result")
