@@ -12,6 +12,7 @@ import httpx
 import markdown2
 from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -20,6 +21,9 @@ from langchain_openai import ChatOpenAI
 app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
+
+# Serve static assets (CSS/JS)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 ROOT_PATH = os.environ.get("ROOT_PATH", "")
 HYDE_PROMPT_PATH = os.environ.get("HYDE_PROMPT_PATH", "")

@@ -2,127 +2,45 @@
 <html lang="ru">
 <head>
     <meta charset="utf-8" />
-    <title>RAG Search</title>
-    <style>
-        body { font-family: sans-serif; margin: 2rem auto; max-width: 800px; }
-        textarea { width: 100%; height: 150px; padding: 1rem; font-size: 1rem; }
-        button { margin-top: 1rem; padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
-        .result { margin-top: 1rem; }
-        .result pre, .result code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-        .result pre { background: #f5f5f5; padding: 1rem; white-space: pre-wrap; border-radius: 4px; overflow-x: auto; }
-        .result h1, .result h2, .result h3 { margin-top: 1.2em; }
-        .result a { color: #0366d6; text-decoration: none; }
-        .result a:hover { text-decoration: underline; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Search</title>
+    <link rel="stylesheet" href="{{ request.url_for('static', path='style.css') }}" />
 </head>
 <body>
-    <textarea id="query" placeholder="Введите запрос..."></textarea>
-    <div>
-        <button id="submit">Отправить</button>
-        <button id="cancel" disabled>Отменить</button>
-        <span id="status" style="margin-left: 1rem; color: #555;"></span>
+    <div class="wrap">
+        <main class="center">
+            <div class="brandbar">
+                <div class="brand" aria-hidden="true">
+                    <div class="logo"></div>
+                    <h1>Search</h1>
+                </div>
+                <div class="theme-switch" role="group" aria-label="Theme">
+                    <div class="seg" id="themeSeg">
+                        <button id="themeAuto" type="button" aria-pressed="true">Auto</button>
+                        <button id="themeLight" type="button" aria-pressed="false">Light</button>
+                        <button id="themeDark" type="button" aria-pressed="false">Dark</button>
+                    </div>
+                </div>
+            </div>
+            <section class="panel">
+                <div class="input">
+                    <textarea id="query" placeholder="Ask a question or enter a query…"></textarea>
+                    <div class="actions">
+                        <button id="submit" class="primary">Search</button>
+                        <button id="cancel" disabled>Cancel</button>
+                    </div>
+                </div>
+                <div class="status" id="status">
+                    <span class="dot" id="dot" style="display:none"></span>
+                    <span id="statusText"></span>
+                </div>
+                <div class="hint">Tip: Ctrl/⌘ + Enter — submit</div>
+                <div id="result" class="result" aria-live="polite" aria-busy="false"></div>
+            </section>
+        </main>
+        <footer>Minimalist interface. Focus on what matters.</footer>
     </div>
-    <div id="result" class="result"></div>
-    <script>
-    let pollTimer = null;
 
-    function setInProgress(inProgress, elapsedMs = 0) {
-        const submit = document.getElementById('submit');
-        const cancel = document.getElementById('cancel');
-        const status = document.getElementById('status');
-        submit.disabled = inProgress;
-        cancel.disabled = !inProgress;
-        if (inProgress) {
-            const secs = Math.floor(elapsedMs / 1000);
-            const mm = String(Math.floor(secs / 60)).padStart(2, '0');
-            const ss = String(secs % 60).padStart(2, '0');
-            status.textContent = `Запрос выполняется… ${mm}:${ss}`;
-        } else {
-            status.textContent = '';
-        }
-    }
-
-    async function pollStatus() {
-        try {
-            const r = await fetch('/search/status');
-            const s = await r.json();
-            if (s.in_progress) {
-                setInProgress(true, s.elapsed_ms || 0);
-                // keep polling
-            } else {
-                setInProgress(false);
-                clearInterval(pollTimer); pollTimer = null;
-                // stream the result once done
-                const out = document.getElementById('result');
-                const res = await fetch('/search/result/stream');
-                if (res.ok && res.body) {
-                    const reader = res.body.getReader();
-                    const decoder = new TextDecoder();
-                    let text = '';
-                    while (true) {
-                        const { value, done } = await reader.read();
-                        if (done) break;
-                        text += decoder.decode(value, { stream: true });
-                        out.textContent = text;
-                    }
-                    const finalRes = await fetch('/search/result');
-                    const finalData = await finalRes.json();
-                    if (finalData && finalData.html) {
-                        out.innerHTML = finalData.html;
-                    }
-                } else {
-                    const data = await res.json().catch(() => ({}));
-                    out.textContent = JSON.stringify(data, null, 2);
-                }
-            }
-        } catch (e) {
-            // swallow errors during polling to avoid UI flicker
-        }
-    }
-
-    async function beginPolling() {
-        if (pollTimer) return;
-        await pollStatus();
-        pollTimer = setInterval(pollStatus, 1500);
-    }
-
-    document.getElementById('submit').onclick = async () => {
-        const q = document.getElementById('query').value;
-        document.getElementById('result').textContent = '';
-        const res = await fetch('/search/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: q })
-        });
-        if (res.status === 409) {
-            setInProgress(true);
-            await beginPolling();
-            return;
-        }
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            document.getElementById('result').textContent = JSON.stringify(err, null, 2);
-            return;
-        }
-        setInProgress(true);
-        await beginPolling();
-    };
-
-    document.getElementById('cancel').onclick = async () => {
-        await fetch('/search/cancel', { method: 'POST' });
-        // Give server a moment to settle, then poll status
-        setTimeout(pollStatus, 300);
-    };
-
-    // On load, check if a query is already running and reflect that
-    (async () => {
-        const r = await fetch('/search/status');
-        const s = await r.json();
-        if (s.in_progress) {
-            setInProgress(true, s.elapsed_ms || 0);
-            await beginPolling();
-        }
-    })();
-    </script>
+    <script src="{{ request.url_for('static', path='app.js') }}"></script>
 </body>
 </html>
