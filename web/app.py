@@ -6,12 +6,12 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, AsyncGenerator, Dict, List
 
 import httpx
 import markdown2
 from fastapi import FastAPI, Request, HTTPException, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -64,6 +64,7 @@ class SessionState:
         result: Result payload from upstream when successful.
         error: Error payload when upstream fails or when cancelled.
         started_at: Unix timestamp when the task started.
+        answer: Last generated Markdown answer from the LLM.
     """
 
     def __init__(self) -> None:
@@ -72,6 +73,7 @@ class SessionState:
         self.result: dict | None = None
         self.error: dict | None = None
         self.started_at: float | None = None
+        self.answer: str | None = None
 
 
 SESSIONS: dict[str, SessionState] = {}
@@ -248,6 +250,35 @@ async def _summarize_to_markdown(question: str, rag_payload: dict[str, Any]) -> 
     return await loop.run_in_executor(None, lambda: chain.invoke({"question": question, "context": context}))
 
 
+async def _summarize_to_markdown_stream(
+    question: str, rag_payload: dict[str, Any]
+) -> AsyncGenerator[str, None]:
+    """Stream the Markdown answer from the LLM.
+
+    Args:
+        question: The original user query.
+        rag_payload: The JSON payload returned by the RAG service.
+
+    Yields:
+        Chunks of the Markdown-formatted answer.
+    """
+
+    items = list(rag_payload.get("items") or [])
+    context = _format_context(items)
+    if not context.strip():
+        yield (
+            "I could not find relevant information in the retrieved context.\n\n"
+            "Please refine your question or broaden the search scope."
+        )
+        return
+    chain = _build_chain()
+    if hasattr(chain, "astream"):
+        async for chunk in chain.astream({"question": question, "context": context}):
+            yield chunk
+        return
+    yield await _summarize_to_markdown(question, rag_payload)
+
+
 def _get_or_set_user_id(request: Request, response: Response) -> str:
     """Return user id from cookie; create if missing and set cookie."""
 
@@ -280,6 +311,7 @@ async def _run_query(uid: str, query: str) -> None:
     state = _state_for(uid)
     state.result = None
     state.error = None
+    state.answer = None
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -334,6 +366,7 @@ async def search_start(request: Request, response: Response, payload: dict[str, 
     # Reset state and launch background task
     state.query = query
     state.started_at = time.time()
+    state.answer = None
     state.task = asyncio.create_task(_run_query(uid, query))
     return {"status": "started"}
 
@@ -351,6 +384,30 @@ def search_status(request: Request, response: Response) -> dict:
         "query": state.query or "",
         "elapsed_ms": elapsed_ms,
     }
+
+
+@app.get("/search/result/stream")
+async def search_result_stream(request: Request, response: Response) -> StreamingResponse:
+    """Stream the LLM answer as it is generated."""
+
+    uid = _get_or_set_user_id(request, response)
+    state = _state_for(uid)
+    if state.task and not state.task.done():
+        raise HTTPException(status_code=409, detail="Query is still in progress")
+    if state.error is not None:
+        status = int(state.error.get("status_code", 500))
+        raise HTTPException(status_code=status, detail=state.error.get("detail"))
+    if not state.result:
+        raise HTTPException(status_code=404, detail="No result available")
+
+    async def iterator() -> AsyncGenerator[str, None]:
+        acc = ""
+        async for chunk in _summarize_to_markdown_stream(state.query or "", state.result):
+            acc += chunk
+            yield chunk
+        state.answer = acc
+
+    return StreamingResponse(iterator(), media_type="text/plain")
 
 
 @app.get("/search/result")
@@ -373,14 +430,18 @@ async def search_result(request: Request, response: Response) -> dict:
         return {"status": "idle"}
 
     # Generate a human-readable Markdown answer using only RAG data
-    try:
-        markdown = await _summarize_to_markdown(state.query or "", state.result)
-    except HTTPException:
-        # Bubble up LangChain import/config issues as-is
-        raise
-    except Exception as exc:
-        # If LLM processing fails, still return the raw payload
-        markdown = f"LLM rendering failed: {exc}"
+    if state.answer is not None:
+        markdown = state.answer
+    else:
+        try:
+            markdown = await _summarize_to_markdown(state.query or "", state.result)
+            state.answer = markdown
+        except HTTPException:
+            # Bubble up LangChain import/config issues as-is
+            raise
+        except Exception as exc:
+            # If LLM processing fails, still return the raw payload
+            markdown = f"LLM rendering failed: {exc}"
 
     # Convert Markdown to HTML for in-page rendering
     html: str
