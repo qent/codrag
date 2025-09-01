@@ -405,13 +405,33 @@ async def search_result_stream(request: Request, response: Response) -> Streamin
         raise HTTPException(status_code=404, detail="No result available")
 
     async def iterator() -> AsyncGenerator[str, None]:
-        acc = ""
-        async for chunk in _summarize_to_markdown_stream(state.query or "", state.result):
-            acc += chunk
-            yield chunk
-        state.answer = acc
+        """Yield answer chunks; if LLM fails, stream the error text.
 
-    return StreamingResponse(iterator(), media_type="text/plain")
+        This ensures clients always receive some body data even when the
+        summarization layer raises early, avoiding a 200 with an empty body.
+        """
+
+        acc = ""
+        # Send a tiny priming chunk to trigger streaming on some proxies
+        # and clients before heavy work begins.
+        yield "\n"
+        try:
+            async for chunk in _summarize_to_markdown_stream(state.query or "", state.result):
+                acc += chunk
+                yield chunk
+            state.answer = acc
+        except HTTPException as exc:
+            # Stream structured error detail if available
+            detail = exc.detail if isinstance(exc.detail, str) else json.dumps(exc.detail)
+            msg = f"LLM rendering failed: {detail}"
+            state.answer = msg
+            yield msg
+        except Exception as exc:  # Catch-all to avoid empty 200 bodies
+            msg = f"LLM rendering failed: {exc}"
+            state.answer = msg
+            yield msg
+
+    return StreamingResponse(iterator(), media_type="text/plain; charset=utf-8")
 
 
 @app.get("/search/result")
