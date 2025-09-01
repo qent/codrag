@@ -52,13 +52,26 @@
             } else {
                 setInProgress(false);
                 clearInterval(pollTimer); pollTimer = null;
-                // fetch the result once done
-                const res = await fetch('/search/result');
-                const data = await res.json();
+                // stream the result once done
                 const out = document.getElementById('result');
-                if (data && data.html) {
-                    out.innerHTML = data.html;
+                const res = await fetch('/search/result/stream');
+                if (res.ok && res.body) {
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let text = '';
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        text += decoder.decode(value, { stream: true });
+                        out.textContent = text;
+                    }
+                    const finalRes = await fetch('/search/result');
+                    const finalData = await finalRes.json();
+                    if (finalData && finalData.html) {
+                        out.innerHTML = finalData.html;
+                    }
                 } else {
+                    const data = await res.json().catch(() => ({}));
                     out.textContent = JSON.stringify(data, null, 2);
                 }
             }
